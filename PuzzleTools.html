@@ -1,0 +1,1536 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>深高创新•学生义工拼图工具 v1.0.6.2511</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js"></script>
+  <style>
+    /* 上面的CSS代码放在这里 */
+    #downloadProgressBar { width: 0%; }
+    #loadingBar { width: 0%; }
+    #domWatermark { display: none; }
+  </style>
+    <style>
+/* * ===================================================
+ * 🎨 主题颜色管理
+ * =================================================== */
+:root {
+    --color-primary: 10, 132, 255;
+    --color-primary-dark: 0, 105, 250;
+    --color-secondary: 220, 220, 225;
+    --color-secondary-dark: 209, 213, 219;
+    --color-body-bg: 247, 247, 250; 
+    --shadow-apple-soft: 0 1px 3px rgba(0, 0, 0, 0.08); 
+    --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.04); 
+    --mobile-padding: 0.5rem;
+    --mobile-btn-padding: 8px 12px;
+    --mobile-font-sm: 0.875rem;
+    --mobile-font-base: 1rem;
+    --control-gap: 0.5rem; /* 12px，四个元素统一间距 */
+    --control-gap-sm: 0.25rem; /* 8px，移动端统一间距 */
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+    background-color: rgb(var(--color-body-bg));
+    background-image: none;
+    transition: background-color 0.3s ease;
+    min-height: 100vh;
+}
+
+/* 基础样式工具类 */
+.shadow-apple { box-shadow: var(--shadow-card); }
+.bg-primary { background-color: rgb(var(--color-primary)); }
+.hover\:bg-primary-dark:hover { background-color: rgb(var(--color-primary-dark)); }
+.text-primary { color: rgb(var(--color-primary)); }
+.border-primary { border-color: rgb(var(--color-primary)); }
+.focus\:border-primary:focus { border-color: rgb(var(--color-primary)); }
+.bg-secondary { background-color: rgb(var(--color-secondary)); }
+.hover\:bg-secondary-dark:hover { background-color: rgb(var(--color-secondary-dark)); }
+
+/* ===================================================
+ * 基础组件样式
+ * =================================================== */
+.rect-container { 
+    position: relative; 
+    overflow: hidden; 
+    background-color: #ffffff; 
+    cursor: default; 
+}
+.rect-item { position: absolute; overflow: hidden; display: flex; justify-content: center; align-items: center; background-color: transparent; cursor: pointer; }
+.rect-item img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s ease; }
+.rect-item:hover img { transform: scale(1.05); }
+.fade-in { animation: fadeIn 0.5s ease-out; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* 🚀 DOM 水印层样式 */
+#domWatermark {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 50; 
+    font-weight: bold;
+    text-align: center;
+    -webkit-text-stroke: 1px rgba(255, 255, 255, 0.9);
+    text-stroke: 1px rgba(255, 255, 255, 0.9);
+    color: rgba(var(--color-primary), 0.9); 
+    opacity: 0.9;
+    pointer-events: none; 
+    user-select: none;
+}
+
+/* ===================================================
+ * 控制栏布局优化
+ * =================================================== */
+.controls-bar {
+    display: flex;
+    align-items: center; /* 垂直居中 */
+    justify-content: center; /* 整体居中 */
+    gap: 4px !important;
+    box-sizing: border-box;
+    padding: var(--control-gap-sm) 0 !important; /* 清除左右padding，避免父容器宽度被压缩 */
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+.controls-bar .stats-group,
+.controls-bar .actions-group {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: var(--control-gap);
+}
+
+#leftControls, #rightControls {
+    display: flex;
+    align-items: center;
+    gap: var(--control-gap);
+    width: auto;
+}
+
+.controls-bar > * {
+    margin: 0 !important; /* 清除所有子元素自带margin */
+    flex-shrink: 0; /* 防止元素被挤压变形 */
+}
+
+/* 右侧操作区专项优化 */
+#rightControls {
+    justify-content: flex-end;
+    padding: 0;
+    margin: 0;
+}
+
+#rightControls > * {
+    margin: 0 !important;
+    flex-shrink: 0;
+}
+
+#rightControls .route-input-base {
+    min-height: 34px;
+    width: 130px !important; /* 覆盖通用样式 */
+}
+
+#rightControls .primary-capsule-btn {
+    min-height: 34px;
+    padding: 6px 18px;
+}
+
+/* ===================================================
+ * 按钮和输入框样式 
+ * =================================================== */
+/* 基础按钮样式（统一继承属性） */
+.btn-base {
+    font-family: inherit;
+    transition: all 0.3s ease-out;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    cursor: pointer;
+}
+.btn-base:disabled {
+    cursor: not-allowed;
+    opacity: 1;
+    transform: none;
+    box-shadow: none;
+}
+
+/* 1. 主按钮（选择图片文件） */
+.primary-btn { 
+    @apply btn-base;
+    font-weight: 600; 
+    border-radius: 1rem; 
+    padding: 12px 20px; 
+    color: white; 
+    background-color: rgb(var(--color-primary)); 
+    box-shadow: 0 4px 10px rgba(var(--color-primary), 0.3); 
+    border: none; 
+}
+@media (min-width: 640px) { 
+    .primary-btn { 
+        font-size: 1.875rem; 
+        padding: 15px 25px;
+    } 
+    .controls-bar { flex-wrap: nowrap; }
+}
+@media (max-width: 639px) {
+    .primary-btn { 
+        font-size: 1.5rem; 
+        padding: 10px 16px;
+    }
+}
+.primary-btn:disabled { 
+    background-color: rgb(var(--color-secondary-dark)); 
+    color: #9ca3af; 
+}
+.primary-btn:hover:not(:disabled) { 
+    background-color: rgb(var(--color-primary-dark)); 
+    box-shadow: 0 6px 15px rgba(var(--color-primary-dark), 0.4); 
+    transform: translateY(-1px); 
+}
+.primary-btn:active:not(:disabled) { 
+    background-color: rgb(var(--color-primary-dark)); 
+    box-shadow: 0 2px 5px rgba(var(--color-primary), 0.2); 
+    transform: translateY(0); 
+}
+
+/* 2. 胶囊主按钮（添加图片/下载拼图） */
+.primary-capsule-btn { 
+    @apply btn-base;
+    font-weight: 600;
+    border-radius: 12px; 
+    font-size: 18px; 
+    padding: 6px 16px; 
+    min-height: 34px; 
+    color: white; 
+    background-image: linear-gradient(to top, rgb(var(--color-primary-dark)) 0%, rgb(var(--color-primary)) 100%); 
+    box-shadow: 0 2px 8px rgba(var(--color-primary), 0.4); 
+}
+.primary-capsule-btn:disabled { 
+    background-color: rgb(var(--color-secondary-dark)); 
+    background-image: none; 
+    color: #9ca3af; 
+}
+
+/* 3. 次要按钮基础样式 */
+.secondary-btn { 
+    @apply btn-base;
+    font-weight: 600;
+    font-size: 16px; 
+    padding: 6px 12px; 
+    min-height: 34px; 
+    color: rgb(var(--color-primary)); 
+    background: white; 
+    border: 2px solid rgb(var(--color-secondary)); 
+    box-shadow: var(--shadow-apple-soft); 
+    border-radius: 8px; 
+    gap: 4px;
+    margin: 0;
+}
+.secondary-btn:hover:not(:disabled) { 
+    background-color: rgb(var(--color-body-bg)); 
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06); 
+}
+
+/* 4. 操作按钮（主题/刷新/清空） */
+.rect-action-btn {
+    @apply secondary-btn;
+    padding: 4px 8px;
+}
+.rect-action-btn i {
+    font-size: 2rem !important;
+}
+
+/* 5. 布局/清晰度选择器按钮 */
+.ratio-quality-btn {
+    @apply secondary-btn;
+    padding: 4px 12px;
+    border: 2px solid rgb(var(--color-secondary));
+    border-left: none;
+    border-radius: 0;
+    font-size: 14px; 
+}
+.ratio-quality-btn:first-of-type {
+    border-left: 2px solid rgb(var(--color-secondary));
+    border-top-left-radius: 9999px;
+    border-bottom-left-radius: 9999px;
+}
+.ratio-quality-btn:last-of-type {
+    border-top-right-radius: 9999px;
+    border-bottom-right-radius: 9999px;
+}
+.ratio-quality-btn.active {
+    @apply primary-capsule-btn;
+    background-image: linear-gradient(to top, rgb(var(--color-primary-dark)) 0%, rgb(var(--color-primary)) 100%);
+    padding: 4px 12px;
+    border: 2px solid rgb(var(--color-primary));
+    color: white;
+    box-shadow: 0 2px 8px rgba(var(--color-primary), 0.4);
+    z-index: 1;
+    margin: 0;
+}
+.ratio-quality-btn.active:first-of-type {
+    border-top-left-radius: 9999px;
+    border-bottom-left-radius: 9999px;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+.ratio-quality-btn.active:last-of-type {
+    border-top-right-radius: 9999px;
+    border-bottom-right-radius: 9999px;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+}
+.ratio-quality-btn.active:not(:first-of-type):not(:last-of-type) {
+    border-radius: 0;
+}
+.ratio-quality-btn.active:only-child {
+    border-radius: 9999px;
+}
+.ratio-quality-btn.active ~ .ratio-quality-btn:not(.active) { 
+    border-left: 2px solid rgb(var(--color-secondary));
+}
+
+.route-input-base { 
+    width: 130px !important;
+    max-width: 120px;
+    min-height: 34px;
+    padding: 6px 8px !important; /* 增加左右内边距，优化输入体验 */
+    border: 2px solid rgb(var(--color-secondary));
+    border-radius: 12px;
+    font-size: 0.8rem !important; /* 从2rem改为1.2rem，适配输入框高度 */
+    text-align: center;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+    vertical-align: middle;
+    line-height: 1.2;
+    resize: none; /* 禁止拉伸，避免高度异常 */
+    box-sizing: border-box;
+    transition: all 0.15s ease;
+    outline: none;
+}
+.route-input-base:focus { 
+    border-color: rgb(var(--color-primary)); 
+    box-shadow: 0 0 0 3px rgba(var(--color-primary), 0.3), inset 0 1px 2px rgba(0, 0, 0, 0.05); 
+}
+.route-input-base::-webkit-input-placeholder,
+.route-input-base:-ms-input-placeholder,
+.route-input-base::placeholder { 
+    text-align: center; 
+    color: #9ca3af; 
+    line-height: inherit;
+    vertical-align: middle;
+}
+
+/* 7. 动画与错误样式 */
+.animate-pulse-primary { 
+    animation: pulse-primary 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; 
+}
+@keyframes pulse-primary { 
+    0%, 100% { box-shadow: 0 0 0 0 rgba(var(--color-primary), 0.7); } 
+    50% { box-shadow: 0 0 0 8px rgba(var(--color-primary), 0); } 
+}
+.border-error { border-color: rgb(var(--color-primary)); }
+
+/* 8. 图标按钮专用样式 */
+.icon-btn {
+    @apply primary-capsule-btn;
+    border-radius: 8px;
+    padding: 8px 12px;
+    min-width: 44px;
+}
+
+/* 9. 顶部添加图片按钮 */
+#fileInputTopLabel.primary-capsule-btn {
+    padding: 6px 16px;
+}
+
+/* 10. 下载按钮统一样式 */
+#downloadBtn.primary-capsule-btn,
+#rightControls #downloadBtn.primary-capsule-btn {
+    padding: 6px 18px;
+    box-shadow: 0 2px 8px rgba(var(--color-primary), 0.4);
+    min-width: auto;
+}
+
+/* ===================================================
+ * 移动端适配（合并所有小屏幕样式）
+ * =================================================== */
+@media (max-width: 640px) {
+    /* 容器宽度调整 */
+    .w-full.max-w-\[66\.6666\%\] {
+        max-width: 96% !important;
+    }
+    
+    #imageContainerParent {
+        max-width: 100% !important; /* 占满手机屏幕宽度 */
+        padding: 2px !important; /* 减少内边距，避免留白 */
+        min-height: 300px !important; /* 空状态默认高度 */
+        display: flex !important; /* 空状态内容居中 */
+        align-items: center !important;
+        justify-content: center !important;
+    }
+    
+    .rect-container {
+        width: 100% !important; /* 拼图容器宽度自适应 */
+    }
+    
+    /* 模态框调整 */
+    #imageModal > div {
+        max-width: 96% !important;
+        max-height: 95vh !important;
+    }
+    
+    .p-4 {
+        padding: 0.75rem !important;
+    }
+    
+    #modalImage {
+        max-height: 60vh !important;
+    }
+    
+    .flex-wrap > div {
+        width: 100% !important;
+        justify-content: center !important;
+        margin-bottom: 0.5rem !important;
+    }
+    
+    /* 操作按钮调整 */
+    .rect-action-btn {
+        padding: 5px 10px !important;
+    }
+    
+    .rect-action-btn i {
+        font-size: 0.9rem !important;
+    }
+    
+    /* 输入框基础样式 */
+    .route-input-base {
+        width: 100px !important;
+        margin: 0 !important;
+    }
+    
+    /* 下载按钮调整 */
+    #rightControls #downloadBtn.primary-capsule-btn {
+        border-radius: 1rem !important;
+        padding: 4px 8px !important;
+        min-width: 36px !important;
+    }
+    
+/* ==============================================
+ * 核心：控制栏（数量/像素/布局/清晰度）样式
+ * ============================================== */
+/* 1. 控制栏整体容器 */
+.controls-bar {
+    padding: var(--control-gap-sm) 4px !important; /* 减少左右留白 */
+    gap: 5px !important; /* 缩小控制栏左右区域间距 */
+}
+
+/* 2. 左侧核心内容区父容器（已整合对齐核心规则） */
+.controls-bar .stats-row {
+    display: flex !important;
+    flex-wrap: nowrap !important; /* 不换行 */
+    align-items: center !important; /* 所有子元素垂直居中（核心） */
+    line-height: 1.2 !important; /* 统一行高，避免文字/按钮高低不一 */
+    justify-content: flex-start !important; /* 左对齐 */
+    width: 100% !important; /* 拉满宽度 */
+    max-width: 100% !important;
+    overflow-x: auto !important; /* 超宽横向滚动 */
+    overflow-y: hidden !important; /* 禁止垂直滚动 */
+    padding: 2px 0 !important;
+    margin: 0 !important;
+    gap: 5px !important; /* 统一子元素间距（数量/像素/布局之间） */
+    scrollbar-width: thin !important; /* 细滚动条 */
+}
+
+/* 滚动条样式 */
+.controls-bar .stats-row::-webkit-scrollbar {
+    height: 4px !important;
+}
+.controls-bar .stats-row::-webkit-scrollbar-thumb {
+    background-color: rgba(0,0,0,0.1) !important;
+    border-radius: 2px !important;
+}
+
+/* 3. 子元素统一处理（清除垂直干扰+对齐继承） */
+.stats-row > * {
+    margin: 0 !important;
+    padding: 0 !important;
+    flex-shrink: 0 !important; /* 不被挤压 */
+    line-height: inherit !important; /* 继承父容器行高，避免文字偏移 */
+    vertical-align: middle !important; /* 兼容inline元素对齐 */
+}
+
+/* 新增：单独缩小“布局”和“清晰度”之间的间距 */
+.stats-row > div + div {
+    margin-left: 2px !important; /* 比其他元素间距小，确保紧凑 */
+}
+
+/* 4. 数量/像素文本样式（确保与按钮对齐） */
+.controls-bar .stats-row p {
+    white-space: nowrap !important; /* 不换行 */
+    font-size: 11px !important;
+    padding: 2px 0 !important;
+    line-height: 1.2 !important; /* 与按钮行高匹配 */
+    height: auto !important; /* 清除固定高度，避免挤压 */
+    align-self: center !important; /* 强制垂直居中，优先级最高 */
+}
+
+/* 数量/像素中的数字样式 */
+.controls-bar .stats-row p #imageCount,
+.controls-bar .stats-row p #rectDimensions {
+    font-size: 11px !important; /* 与文字同尺寸，不突出 */
+}
+
+/* 5. 布局/清晰度分组容器（与文本对齐） */
+.controls-bar .stats-row > div {
+    padding: 2px 0 !important;
+    width: auto !important; /* 宽度随内容变化，不强制固定 */
+    height: auto !important; /* 清除固定高度 */
+    align-self: center !important; /* 强制垂直居中，与p标签对齐 */
+}
+
+/* 6. 布局/清晰度文字样式 */
+.stats-row span {
+    white-space: nowrap !important;
+    font-size: 11px !important;
+    margin-right: 2px !important; /* 文字与按钮间隙 */
+}
+
+/* 7. 布局/清晰度按钮样式（匹配文本高度） */
+.ratio-quality-btn {
+    min-width: 28px !important; /* 固定宽度，确保能放下文字 */
+    white-space: nowrap !important; /* 按钮文字不换行 */
+    font-size: 10px !important; /* 缩小文字，省空间 */
+    padding: 2px 4px !important; /* 压缩内边距，减少横向占用 */
+    line-height: 1.2 !important; /* 与p标签行高一致，避免上下偏移 */
+    height: auto !important; /* 清除固定高度，由内容决定 */
+    border: 2px solid rgb(var(--color-secondary)) !important;
+}
+
+/* 修正：选中按钮样式（原类名多写一个"quality"，已修正） */
+.ratio-quality-btn.active {
+    background-image: linear-gradient(to top, rgb(var(--color-primary-dark)) 0%, rgb(var(--color-primary)) 100%) !important;
+    border-color: rgb(var(--color-primary)) !important;
+    color: white !important;
+}
+
+/* ==============================================
+ * 右侧操作区样式
+ * ============================================== */
+#leftControls, #rightControls {
+    gap: var(--control-gap-sm);
+    width: 100%;
+    justify-content: center;
+}
+
+#rightControls {
+    margin-top: var(--control-gap-sm) !important;
+    gap: 4px !important; /* 缩小输入框与下载按钮间距 */
+}
+
+#rightControls .route-input-base {
+    width: 120px !important;
+}
+
+#rightControls .primary-capsule-btn {
+    padding: 4px 12px !important;
+}
+
+/* 统一按钮文本大小 */
+.primary-capsule-btn {
+    font-size: 16px !important;
+}
+
+/* 页面高度基础样式 */
+html, body {
+    height: 100%; /* 占满屏幕高度 */
+}
+
+footer {
+    height: 60px !important; /* 固定版权区高度 */
+}
+
+/* 语录容器及父元素强制可见 */
+#quoteWrapper,
+#quoteWrapper > div,
+#currentQuote {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  position: relative !important;
+  z-index: 100 !important; /* 确保在最上层，不被遮挡 */
+  height: auto !important;
+  overflow: visible !important;
+}
+
+/* 语录文字样式（确保能看清） */
+#currentQuote {
+  color: #555 !important; /* 深灰色，避免与背景融合 */
+  font-size: 16px !important;
+  padding: 10px 0 !important;
+  margin: 0 !important;
+  text-align: center !important;
+  line-height: 1.5 !important;
+}
+     
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+    
+    <div class="w-full sticky top-0 z-10 max-w-[66.6666%] mx-auto">
+        <header class="bg-white shadow-apple rounded-xl border-b border-gray-100 w-full">
+            <div class="px-3 pt-3 pb-2 w-full"> 
+                <div class="w-full flex justify-between items-center flex-wrap gap-2"> 
+                    
+                    <div class="flex items-end flex-wrap"> 
+                        <h1 class="text-xl sm:text-3xl font-black text-primary tracking-wide mr-3 m-0">
+                            <span class="hidden sm:inline">深高创新•学生义工拼图工具</span>
+                            <span class="sm:hidden">创新•义工拼图工具</span>
+                        </h1>
+                        <span class="text-sm sm:text-base text-gray-500 font-medium">v1.0.6.2511</span>
+                    </div>
+                    
+                    <div class="flex items-center space-x-2">
+                    
+                        <button id="themeSwitchBtn" class="secondary-btn">
+                            <i class="fa fa-palette"></i> <span class="hidden sm:inline">主题</span>
+                        </button>                   
+                        <button id="regenerateBtn" class="secondary-btn">
+                            <i class="fa fa-sync-alt"></i> <span class="hidden sm:inline">重排</span>
+                        </button>
+                        <button id="clearBtn" class="secondary-btn">
+                            <i class="fa fa-trash"></i> <span class="hidden sm:inline">清空</span>
+                        </button>
+                   
+                   
+                        <input type="file" id="fileInputTop" multiple accept="image/jpeg,image/png,image/webp" class="hidden">
+                        <label for="fileInputTop" id="fileInputTopLabel" class="cursor-pointer primary-capsule-btn">
+                            <i class="fa fa-upload"></i> <span class="hidden sm:inline">添加图片</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </header>
+    </div>
+
+    <main class="flex-grow pb-4"> 
+        
+<div id="statsBar" class="bg-white p-1 rounded-2xl shadow-apple w-full max-w-[66.6666%] mx-auto flex flex-col gap-1 mt-1 hidden">          
+<div class="controls-bar flex flex-wrap justify-between items-center gap-x-2 gap-y-1">  
+    <div class="stats-row flex items-baseline flex-nowrap gap-x-2 gap-y-0.5 w-full sm:w-auto">
+                 
+        <!-- 布局选择器 - 移动端缩小尺寸 -->
+<div class="flex items-center flex-wrap gap-0 w-full sm:w-auto mt-0 sm:mt-0">
+    <span class="font-semibold text-gray-700 mr-1 text-xs sm:text-lg">布局</span>
+    <!-- 新增 radio 输入框 -->
+    <input type="radio" name="aspectRatio" id="ratio-16-9" value="16:9" class="hidden">
+    <label for="ratio-16-9" class="ratio-quality-btn cursor-pointer text-xs" data-value="16:9" data-group="aspectRatio">16:9</label>
+    
+    <input type="radio" name="aspectRatio" id="ratio-4-3" value="4:3" class="hidden" checked>
+    <label for="ratio-4-3" class="ratio-quality-btn cursor-pointer text-xs" data-value="4:3" data-group="aspectRatio">4:3</label>						
+    
+    <input type="radio" name="aspectRatio" id="ratio-1-1" value="1:1" class="hidden">
+    <label for="ratio-1-1" class="ratio-quality-btn cursor-pointer text-xs" data-value="1:1" data-group="aspectRatio">1:1</label>
+</div>
+
+        <!-- 清晰度选择器 - 移动端缩小尺寸 -->
+<div class="flex items-center flex-wrap gap-0 w-full sm:w-auto mt-0 sm:mt-0">
+    <span class="font-semibold text-gray-700 mr-1 text-xs sm:text-lg">清晰度</span>
+    <!-- 新增 radio 输入框 -->
+    <input type="radio" name="renderQuality" id="quality-1x" value="1" class="hidden">
+    <label for="quality-1x" class="ratio-quality-btn cursor-pointer text-xs" data-value="1" data-group="renderQuality">1x</label>
+    
+    <input type="radio" name="renderQuality" id="quality-2x" value="2" class="hidden" checked> <!-- 默认选中2x -->
+    <label for="quality-2x" class="ratio-quality-btn cursor-pointer text-xs" data-value="2" data-group="renderQuality">2x</label>
+    
+    <input type="radio" name="renderQuality" id="quality-3x" value="3" class="hidden">
+    <label for="quality-3x" class="ratio-quality-btn cursor-pointer text-xs" data-value="3" data-group="renderQuality">3x</label>
+</div>
+    </div>
+   
+    <!-- 右侧操作按钮 - 移动端堆叠 -->   
+    <div class="flex items-center flex-wrap gap-x-2 gap-y-0 sm:w-auto w-full justify-between sm:justify-end">
+                    
+
+
+        <div id="rightControls" class="flex items-center w-full sm:w-auto mt-0 sm:mt-0">
+    <textarea id="routeNumberInput" placeholder="请输入线路编号" maxlength="130" rows="1" class="route-input-base text-xs"></textarea>
+    <button id="downloadBtn" class="primary-capsule-btn text-xs">
+        <i class="fa fa-download"></i> <!-- 始终显示图标 -->
+        <span class="hidden sm:inline">下载</span> <!-- 手机端隐藏文字，sm以上显示 -->
+    </button>
+        </div>
+    </div>
+</div>
+</div>
+        
+<div id="imageContainerParent" class="flex justify-center items-center bg-white p-2 sm:p-4 rounded-2xl shadow-apple relative w-full max-w-[66.6666%] mx-auto mt-1.5 min-h-[200px] sm:min-h-80">
+    <!-- 下载遮罩（保留） -->
+    <div id="downloadOverlay" class="hidden absolute inset-0 bg-white/90 backdrop-blur-sm z-20 rounded-2xl flex-col justify-center items-center p-8 text-center space-y-4">
+        <p class="text-base sm:text-2xl font-semibold text-primary">正在使用生成大图...</p> 
+        <p class="text-base sm:text-lg font-semibold text-gray-700">请耐心等待 5-15 秒。若失败，请切换清晰度!</p>
+        <div class="w-full max-w-sm bg-gray-200 rounded-full h-2.5">
+            <div id="downloadProgressBar" class="bg-primary h-2.5 rounded-full transition-all duration-100 ease-linear"></div>
+        </div>
+        <p id="downloadProgressText" class="text-base text-gray-500">正在等待浏览器渲染...</p>
+    </div>
+
+    <!-- 修复：空状态容器（删除重复嵌套，确保闭合） -->
+    <div id="emptyState" class="text-center py-20 px-8 space-y-6 flex flex-col items-center w-full">
+        <svg class="mx-auto h-20 w-20 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-12 5h12a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+        </svg>
+        <p class="text-2xl sm:text-3xl font-black text-gray-800">拖拽图片到此处上传</p>
+        <p class="text-lg text-gray-500">（支持多张图片同时上传，文件格式：JPEG/PNG/WEBP）</p>
+        <input type="file" id="fileInput" multiple accept="image/jpeg,image/png,image/webp" class="hidden">
+        <label for="fileInput" id="emptyStateUploadLabel" class="cursor-pointer primary-btn rounded-full">
+            <i class="fa fa-upload sm:hidden"></i>
+            <span class="hidden sm:inline">选择图片文件</span>
+        </label>
+    </div>
+
+    <!-- 加载状态（保留） -->
+    <div id="loadingState" class="hidden absolute inset-0 bg-white/90 z-10 flex flex-col justify-center items-center p-8 text-center space-y-4 rounded-2xl">
+        <i class="fa fa-spinner fa-spin text-4xl text-primary"></i>
+        <p id="loadingText" class="text-lg font-semibold text-gray-700 text-base sm:text-lg">正在加载并转换图片以确保水印安全...</p>
+        <div class="w-full max-w-sm bg-gray-200 rounded-full h-2.5">
+            <div id="loadingBar" class="bg-primary h-2.5 rounded-full transition-all duration-300 ease-out"></div>
+        </div>
+    </div>
+
+    <!-- 拼图容器（保留） -->
+    <div id="rectContainer" class="rect-container shadow-inner border-2 border-gray-200 rounded-lg">
+        <div id="domWatermark" class="text-4xl"></div>
+    </div>
+</div>
+        
+        <div class="w-full max-w-[66.6666%] mx-auto mt-1.5">
+             <div class="text-center bg-white rounded-xl shadow-apple italic w-full">
+                <p id="currentQuote" class="transition-opacity duration-1000 opacity-100 p-4 text-sm sm:text-base text-gray-500"></p>
+            </div>
+        </div>
+
+    </main>
+
+    <div id="imageModal" class="fixed inset-0 bg-black bg-opacity-80 backdrop-blur-md hidden flex items-center justify-center z-50 p-4" aria-modal="true" role="dialog">
+        <div class="relative bg-white rounded-2xl w-full max-w-screen-xl max-h-[90vh] flex flex-col shadow-apple">
+            <div class="p-4 border-b flex justify-between items-center bg-gray-50/50 rounded-t-2xl">
+                <h3 id="imageName" class="text-lg sm:text-xl font-bold truncate">图片名</h3>
+                <button id="closeModal" class="secondary-btn p-2 rounded-full text-gray-500 hover:text-gray-800 transition" title="关闭预览"><i class="fa fa-times text-base"></i></button>
+            </div>
+            <div class="relative flex-grow overflow-hidden flex items-center justify-center p-4">
+                <img id="modalImage" src="" alt="Preview" class="object-contain max-h-full max-w-full">
+            </div>
+            <div class="p-4 border-t flex justify-between items-center flex-wrap space-y-2 sm:space-y-0 text-sm sm:text-base bg-gray-50/50 rounded-b-2xl">
+                <div class="flex items-center space-x-4 text-gray-600">
+                    <p>尺寸: <span id="modalImgSize" class="font-semibold"></span></p>
+                    <p>比例: <span id="modalImgRatio" class="font-semibold"></span></p>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <button id="downloadSingleBtn" class="text-primary hover:text-primary-dark font-semibold transition"><i class="fa fa-download mr-1"></i> 单张下载</button>
+                    <button id="deleteSingleBtn" class="text-primary hover:text-primary-dark font-semibold transition"><i class="fa fa-trash mr-1"></i> 删除</button>
+                </div>
+                
+                <div class="flex items-center space-x-4 ml-auto sm:ml-0 mt-2 sm:mt-0">
+                    <button id="prevImageBtn" class="secondary-btn p-2 rounded-full disabled:opacity-50 transition" title="查看上一张图片"><i class="fa fa-arrow-left"></i></button>
+                    <span class="font-bold text-gray-700"><span id="currentImageIndex">1</span> / <span id="totalImageCount">1</span></span>
+                    <button id="nextImageBtn" class="secondary-btn p-2 rounded-full disabled:opacity-50 transition" title="查看下一张图片"><i class="fa fa-arrow-right"></i></button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="p-3 text-center text-sm text-gray-500">
+        <p id="copyrightFooter"></p>
+    </footer>
+
+    <script>
+        
+        // * ===================================================
+        // * 🎨 主题切换逻辑 (保持不变)
+        // * ===================================================
+        const THEMES = [
+            { name: 'Blue (苹果)', primary: '10, 132, 255', dark: '0, 105, 250' },
+            { name: 'Red (经典)', primary: '220, 38, 38', dark: '185, 28, 28' },
+            { name: 'Green (自然)', primary: '22, 163, 74', dark: '21, 128, 61' },
+            { name: 'Purple (创新)', primary: '124, 58, 237', dark: '109, 40, 217' }
+        ];
+        let currentThemeIndex = 0;
+        const root = document.documentElement;
+
+        function applyTheme(theme) {
+            root.style.setProperty('--color-primary', theme.primary);
+            root.style.setProperty('--color-primary-dark', theme.dark);
+        }
+
+        function switchTheme() {
+            currentThemeIndex = (currentThemeIndex + 1) % THEMES.length;
+            const nextTheme = THEMES[currentThemeIndex];
+            applyTheme(nextTheme);
+            localStorage.setItem('themeIndex', currentThemeIndex);
+        }
+
+        function loadTheme() {
+            const savedIndex = localStorage.getItem('themeIndex');
+            if (savedIndex !== null && !isNaN(parseInt(savedIndex)) && parseInt(savedIndex) >= 0 && parseInt(savedIndex) < THEMES.length) {
+                currentThemeIndex = parseInt(savedIndex);
+            }
+            applyTheme(THEMES[currentThemeIndex]);
+        }
+        
+        // 🚀 核心函数：获取当前的缩放比例 (1, 2, 或 3)
+        function getScale() {
+            const radio = document.querySelector('input[name="renderQuality"]:checked');
+            // 默认值：2x
+            return radio ? parseInt(radio.value) : 2; 
+        }
+
+
+        document.addEventListener('DOMContentLoaded', function() {
+            loadTheme();
+            
+            function debounce(func, delay) {
+                let timeout;
+                return function(...args) {
+                    const context = this;
+                    clearTimeout(timeout);
+                    timeout = setTimeout(() => func.apply(context, args), delay);
+                };
+            }
+
+            class GalleryOptimizer {
+                
+                CONFIG = {
+                    GAP: 1,
+                    IDEAL_ROW_HEIGHT: 250, 
+                    BINARY_SEARCH_ITERATIONS: 15, 
+                    JPEG_QUALITY: 1.0, 
+                };
+
+                constructor() {
+                    this.dom = this._getDomReferences();
+                    this.state = this._getInitialState();
+                    
+                    this._initEventListeners();
+                    this._setupDragAndDrop();
+                    // 确保在初始化时更新按钮状态
+                    this.updateRatioButtonState(this.state.aspectRatio, 'aspectRatio');
+                    this.updateRatioButtonState(this.state.renderQuality.toString(), 'renderQuality');
+                    this.updateUIState();
+                }
+
+                _getDomReferences() {
+                    const ids = [
+                        'rectContainer', 'fileInput', 'fileInputTop', 'fileInputTopLabel', 
+                        'emptyState', 'loadingState', 'loadingText', 'loadingBar', 'downloadBtn',
+                        'clearBtn', 'imageModal', 'modalImage', 'closeModal', 'prevImageBtn',
+                        'nextImageBtn', 'currentImageIndex', 'totalImageCount', 'emptyStateUploadLabel',
+                        'statsBar', 'rectDimensions', 'regenerateBtn', 'imageName',
+                        'downloadSingleBtn', 'deleteSingleBtn', 'modalImgSize',
+                        'modalImgRatio', 'routeNumberInput', 'downloadOverlay', 
+                        'downloadProgressBar', 'downloadProgressText', 'imageCount',
+                        'themeSwitchBtn', 'rightControls', 'imageContainerParent', 'currentQuote',
+                        'domWatermark' 
+                    ];
+                    const dom = {};
+                    ids.forEach(id => dom[id] = document.getElementById(id));
+                    dom.aspectRatioRadios = document.querySelectorAll('input[name="aspectRatio"]');
+                    dom.renderQualityRadios = document.querySelectorAll('input[name="renderQuality"]');
+                    dom.ratioButtons = document.querySelectorAll('.ratio-quality-btn'); 
+                    return dom;
+                }
+
+                _getInitialState() {
+                    let defaultRatio = '4:3';
+                    const checkedRatio = document.querySelector('input[name="aspectRatio"]:checked');
+                    if(checkedRatio) defaultRatio = checkedRatio.value;
+                    
+                    // 默认值：2x
+                    let defaultQuality = 2;
+                    const checkedQuality = document.querySelector('input[name="renderQuality"]:checked');
+                    if(checkedQuality) defaultQuality = parseInt(checkedQuality.value);
+
+                    return {
+                        imageItems: [],
+                        currentPreviewIndex: 0,
+                        isDownloading: false,
+                        rectWidth: 0,
+                        layoutPositions: [],
+                        totalHeight: 0,
+                        aspectRatio: defaultRatio,
+                        renderQuality: defaultQuality,
+                    };
+                }
+
+                _initEventListeners() {
+                    this.dom.fileInput.addEventListener('change', (e) => this.handleFileUpload(e.target.files));
+                    this.dom.fileInputTop.addEventListener('change', (e) => this.handleFileUpload(e.target.files));
+                    
+                    this.dom.downloadBtn.addEventListener('click', this.downloadRectangle.bind(this));
+                    this.dom.clearBtn.addEventListener('click', this.clearAllImages.bind(this));
+                    this.dom.regenerateBtn.addEventListener('click', this.regenerateLayout.bind(this));
+                    this.dom.closeModal.addEventListener('click', this.closeModal.bind(this));
+                    this.dom.prevImageBtn.addEventListener('click', () => this.switchPreviewImage(-1));
+                    this.dom.nextImageBtn.addEventListener('click', () => this.switchPreviewImage(1));
+                    this.dom.imageModal.addEventListener('click', (e) => { if (e.target === this.dom.imageModal) this.closeModal(); });
+                    this.dom.downloadSingleBtn.addEventListener('click', () => this.downloadSingleImage());
+                    this.dom.deleteSingleBtn.addEventListener('click', () => this.deleteCurrentImage());
+                    this.dom.themeSwitchBtn.addEventListener('click', switchTheme); 
+
+                    document.addEventListener('keydown', (e) => {
+                        if (this.dom.imageModal.classList.contains('hidden')) return;
+                        if (e.key === 'Escape') this.closeModal();
+                        if (e.key === 'ArrowLeft') this.switchPreviewImage(-1);
+                        if (e.key === 'ArrowRight') this.switchPreviewImage(1);
+                    });
+                    
+                    this.dom.routeNumberInput.addEventListener('input', () => this.handleRouteInputChange());
+                    
+                    this.dom.aspectRatioRadios.forEach(radio => {
+                        radio.addEventListener('change', (e) => {
+                            this.state.aspectRatio = e.target.value;
+                            this.updateRatioButtonState(e.target.value, 'aspectRatio'); 
+                            this.calculateAndRenderRectangle();
+                        });
+                    });
+                    
+                    this.dom.renderQualityRadios.forEach(radio => {
+                        radio.addEventListener('change', (e) => {
+                            this.state.renderQuality = parseInt(e.target.value);
+                            this.updateRatioButtonState(e.target.value, 'renderQuality'); 
+                        });
+                    });
+
+                    window.addEventListener('resize', debounce(this.calculateAndRenderRectangle.bind(this), 150));
+                    
+                    if (this.state.imageItems.length === 0) {
+                        this.dom.imageContainerParent.classList.remove('hidden');
+                        this.dom.emptyState.classList.remove('hidden');
+                    }
+                }
+                
+                handleRouteInputChange() {
+                    this.updateUIState();
+                    this._updateWatermarkVisibility();
+                }
+
+_updateWatermarkVisibility() {
+    const watermarkText = this.dom.routeNumberInput.value.trim();
+    let rectWidth = this.state.rectWidth;
+    const domWatermark = this.dom.domWatermark;
+
+    // 若rectWidth无效，从DOM获取或用保底值
+    if (!rectWidth || rectWidth < 100) {
+        rectWidth = this.dom.rectContainer.getBoundingClientRect().width || 200;
+    }
+const maxWatermarkWidth = rectWidth * 0.9; // 4/5的预览区域宽度
+    if (watermarkText !== '' && rectWidth > 0) {
+        domWatermark.textContent = watermarkText;
+        domWatermark.style.whiteSpace = 'pre-line';
+        domWatermark.style.lineHeight = '1.2';
+        domWatermark.style.wordBreak = 'break-word'; // 关键：避免字母/数字被强制拆分
+        domWatermark.style.wordSpacing = '0'; // 消除额外字间距影响
+domWatermark.style.maxWidth = `${maxWatermarkWidth}px`; // 强制水印不超过4/5宽度
+        domWatermark.style.margin = '0 auto'; // 居中显示（可选，更美观）
+
+        const textLength = watermarkText.length;
+        let fontSize = 0;
+
+        // 优化短文本逻辑：5个及以下字符强制单行显示
+        const maxLines = textLength <= 5 ? 1 : 3;
+        const minCharsPerLine = textLength <= 5 ? textLength : 5; // 短文本每行字符数等于总长度
+        const SAFETY_FACTOR = textLength <= 5 ? 1.1 : 1.2; // 短文本减少安全系数，让字体更大
+        const PADDING_FACTOR = 0.95; // 增加可用宽度占比
+
+        /*
+        // 按单行最大字符数计算（总长度/最大行数）
+        const charsPerLine = Math.ceil(textLength / maxLines);
+        fontSize = Math.floor((rectWidth * PADDING_FACTOR) / (charsPerLine * SAFETY_FACTOR));
+        */
+        
+        // 计算每行字符数，确保不小于最小值
+        const charsPerLine = Math.max(
+            Math.ceil(textLength / maxLines), 
+            minCharsPerLine
+        );
+        
+        // 关键：基于4/5的宽度计算字体大小（而非完整宽度）
+        fontSize = Math.floor((maxWatermarkWidth * PADDING_FACTOR) / (charsPerLine * SAFETY_FACTOR));      
+
+        // 调整字体大小限制（基于4/5宽度）
+        const MAXIMUM_FONT_LIMIT = Math.floor(maxWatermarkWidth / 5); // 最大字体不超过4/5宽度的1/5
+        fontSize = Math.min(fontSize, MAXIMUM_FONT_LIMIT);
+        fontSize = Math.max(fontSize, 14);
+
+        domWatermark.style.fontSize = `${fontSize}px`;
+        
+        const strokeWidth = Math.max(fontSize / 25, 1.2);
+        domWatermark.style.textStroke = `${strokeWidth}px rgba(255, 255, 255, 0.9)`;
+        domWatermark.style.webkitTextStroke = `${strokeWidth}px rgba(255, 255, 255, 0.9)`;
+
+        domWatermark.style.display = 'block';
+    } else {
+        domWatermark.style.display = 'none';
+    }
+}
+
+
+                updateRatioButtonState(activeValue, groupName) {
+                    this.dom.ratioButtons.forEach(btn => {
+                        if (btn.getAttribute('data-group') === groupName) {
+                            if (btn.getAttribute('data-value') === String(activeValue)) {
+                                btn.classList.add('active');
+                            } else {
+                                btn.classList.remove('active');
+                            }
+                        }
+                    });
+                }
+
+                _setupDragAndDrop() {
+                    const dropArea = document.body; 
+                    const preventDefaults = (e) => { e.preventDefault(); e.stopPropagation(); };
+                    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => dropArea.addEventListener(eventName, preventDefaults, false));
+                    dropArea.addEventListener('drop', (e) => { this.handleFileUpload(e.dataTransfer.files); }, false);
+                }
+
+                async _readFileAsDataURL(file) {
+                    return new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => resolve(e.target.result);
+                        reader.onerror = (e) => reject(new Error('Failed to read file as DataURL.'));
+                        reader.readAsDataURL(file);
+                    });
+                }
+
+                async _loadImageData(file) {
+                    try {
+                        const dataURL = await this._readFileAsDataURL(file); 
+                        
+                        const image = await new Promise((resolve, reject) => {
+                            const img = new Image();
+                            img.crossOrigin = 'anonymous'; 
+                            img.onload = () => resolve(img);
+                            img.onerror = () => reject(new Error('Image load failed from DataURL.'));
+                            img.src = dataURL;
+                        });
+                        
+                        const { width, height } = image;
+                        
+                        if (width <= 0 || height <= 0 || !isFinite(width) || !isFinite(height)) {
+                            console.error('Image has invalid dimensions:', file.name, width, 'x', height);
+                            throw new Error('Invalid dimensions (0 or NaN)');
+                        }
+                        
+                        return { 
+                            id: `${Date.now()}-${Math.random()}`, 
+                            src: dataURL, 
+                            width, 
+                            height, 
+                            ratio: width / height, 
+                            name: file.name,
+                            file: file 
+                        };
+                    } catch (error) {
+                        console.error('Failed to load image metadata:', file.name, error);
+                        return null;
+                    }
+                }
+
+                async handleFileUpload(files) {
+                    if (!files || files.length === 0) return;
+                    
+                    const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+                    if (imageFiles.length === 0) { alert('No valid image files detected.'); return; }
+                    
+                    this.dom.imageContainerParent.classList.remove('hidden');
+                    this.dom.emptyState.classList.add('hidden');
+                    this.dom.loadingState.classList.remove('hidden');
+                    
+                    const totalFiles = imageFiles.length;
+                    const updateProgress = (loaded, text) => { 
+                        this.dom.loadingText.textContent = text; 
+                        this.dom.loadingBar.style.width = `${(loaded / totalFiles) * 100}%`; 
+                    };
+
+                    updateProgress(0, `正在加载并转换 ${totalFiles} 张图片...`);
+                    
+                    const newImages = [];
+                    for (let i = 0; i < totalFiles; i++) {
+                        const result = await this._loadImageData(imageFiles[i]);
+                        if (result) {
+                            newImages.push(result);
+                        }
+                        updateProgress(i + 1, `已转换 ${i + 1}/${totalFiles} 张图片...`);
+                    }
+                    
+                    this.state.imageItems = this.state.imageItems.concat(newImages); 
+                    
+                    if (this.state.imageItems.length > 0) {
+                        this.dom.loadingState.classList.add('hidden'); 
+                                this.state.layoutPositions = [];
+        this.state.totalHeight = 0;
+                        this.calculateAndRenderRectangle();            
+                        this.updateUIState();
+                        this._updateWatermarkVisibility();
+                    } else {
+                        this.dom.loadingState.classList.add('hidden');
+                        this.updateUIState();
+                        if (files.length > 0) alert('所有选定的图片文件加载失败。请检查文件格式。');
+                    }
+                    this.dom.fileInput.value = '';
+                    this.dom.fileInputTop.value = '';
+                }
+
+                regenerateLayout() { 
+                    if (this.state.imageItems.length === 0) return; 
+                    this.state.imageItems.sort(() => 0.5 - Math.random()); 
+                    this.calculateAndRenderRectangle(); 
+                }
+
+                calculateAndRenderRectangle() {
+                    this.state.imageItems = this.state.imageItems.filter(item => 
+                        item.ratio > 0 && isFinite(item.ratio)
+                    );
+                    
+                    if (this.state.imageItems.length === 0) { 
+                        this.state.layoutPositions = []; this.state.totalHeight = 0; this.updateUIState(); return; 
+                    }
+                    this.dom.rectContainer.innerHTML = ''; // 清空原有内容
+
+                    // 重新添加 DOM 水印层
+                    this.dom.rectContainer.appendChild(this.dom.domWatermark);
+                    
+                    const imageContainer = this.dom.imageContainerParent; 
+                    const mainContentWidth = imageContainer.getBoundingClientRect().width;
+                    const rectContainerPadding = 32; 
+                    this.state.rectWidth = Math.round(mainContentWidth - rectContainerPadding);
+                    
+                    if (this.state.rectWidth < 200) this.state.rectWidth = 200;
+                    
+                    const [w, h] = this.state.aspectRatio.split(':').map(Number);
+            
+					// **** 核心修正：使用固定的行数权重来计算理想行高 ****
+            
+					// 1. 根据目标比例计算行高权重：
+					const targetRatio = w / h; 
+                    
+                    
+                    const isMobile = window.innerWidth <= 640;
+                    const WEIGHTED_ROW_COUNT = isMobile ? 1.5 : 2.0;
+                    let idealRowHeight = this.state.rectWidth / (targetRatio * WEIGHTED_ROW_COUNT);
+    
+                    // 移动端强制行高不超过屏幕高度的1/3，避免纵向长条
+                    if (isMobile) {
+                        const maxRowHeight = window.innerHeight / 3; // 最大行高为屏幕高度的1/3
+                        idealRowHeight = Math.min(idealRowHeight, maxRowHeight);
+                    }
+            
+					// 3. 计算理想行高：
+					//    idealRowHeight = rectWidth / (目标比例 * 行数权重)
+					//    这个公式确保 idealRowHeight 只由容器宽度和目标比例决定。
+           
+					const result = this._findLayoutForTargetHeight(this.state.rectWidth, idealRowHeight);
+                    
+                    if (!result || !result.positions || typeof result.totalHeight !== 'number' || result.totalHeight === 0) {
+                        console.warn("Layout calculation returned invalid results. Aborting render.");
+                        this.state.layoutPositions = [];
+                        this.state.totalHeight = 0;
+                        this.updateUIState();
+                        return;
+                    }
+
+                    this.state.layoutPositions = result.positions;
+                    this.state.totalHeight = result.totalHeight;
+
+                    this.dom.rectContainer.style.width = `${this.state.rectWidth}px`;
+                    this.dom.rectContainer.style.height = `${this.state.totalHeight}px`;
+                    
+                    this._placeImagesInRectangle(this.state.layoutPositions);
+                    this.updateUIState();
+                    this._updateWatermarkVisibility(); // 重新计算水印大小
+                }
+                
+                _findLayoutForTargetHeight(containerWidth, idealRowHeight) {
+                    // 强制重置：根据当前选中的布局比例，重新计算理想行高（不受图片数量影响）
+    const [wRatio, hRatio] = this.state.aspectRatio.split(':').map(Number);
+    // 核心公式：理想行高 = 容器宽度 / (目标宽高比 * 固定列数权重)
+    // 固定列数权重设为 4（可根据需求调整，确保1-多张图都适配）
+    const fixedColWeight = 4; 
+    idealRowHeight = containerWidth / ((wRatio / hRatio) * fixedColWeight);
+                    let low = 20; 
+                    let high = containerWidth; 
+
+                    let bestLayout = this._calculateJustifiedLayout(containerWidth, idealRowHeight);
+                    
+                    if (!bestLayout || bestLayout.totalHeight <= 0 || !isFinite(bestLayout.totalHeight)) {
+                         bestLayout = this._calculateJustifiedLayout(containerWidth, this.CONFIG.IDEAL_ROW_HEIGHT);
+                         if (!bestLayout || bestLayout.totalHeight <= 0 || !isFinite(bestLayout.totalHeight)) {
+                            return { positions: [], totalHeight: 0 };
+                         }
+                    }
+                    
+                    let minLayoutDiff = Infinity;
+                    if(bestLayout.positions.length > 0) {
+                        const rowHeights = bestLayout.positions.reduce((acc, pos) => {
+                            if (pos.x === 0) acc.push(pos.height);
+                            return acc;
+                        }, []);
+                        const averageRowHeight = rowHeights.length > 0 ? rowHeights.reduce((sum, h) => sum + h, 0) / rowHeights.length : 0;
+                        const diff = Math.abs(averageRowHeight - idealRowHeight);
+                        minLayoutDiff = diff;
+                    } else {
+                        return { positions: [], totalHeight: 0 };
+                    }
+
+
+                    for (let i = 0; i < this.CONFIG.BINARY_SEARCH_ITERATIONS; i++) {
+                        const midRowHeight = (low + high) / 2;
+                        
+                        if (high - low < 0.1) break; 
+                        
+                        const layout = this._calculateJustifiedLayout(containerWidth, midRowHeight);
+                        
+                        if (!isFinite(layout.totalHeight) || layout.totalHeight <= 0) {
+                            high = midRowHeight; 
+                            continue;
+                        }
+
+                        const rowHeights = layout.positions.reduce((acc, pos) => {
+                            if (pos.x === 0) acc.push(pos.height);
+                            return acc;
+                        }, []);
+                        
+                        const averageRowHeight = rowHeights.length > 0 ? rowHeights.reduce((sum, h) => sum + h, 0) / rowHeights.length : 0;
+                        const diff = Math.abs(averageRowHeight - idealRowHeight);
+
+                        if (diff < minLayoutDiff) { 
+                            minLayoutDiff = diff; 
+                            bestLayout = layout; 
+                        }
+                        
+                        if (averageRowHeight < idealRowHeight) { 
+                            low = midRowHeight; 
+                        } else { 
+                            high = midRowHeight; 
+                        }
+                    }
+                    
+                    if (!bestLayout || bestLayout.totalHeight <= 0 || !isFinite(bestLayout.totalHeight)) {
+                        return { positions: [], totalHeight: 0 };
+                    }
+                    
+                    return bestLayout;
+                }
+                
+_calculateJustifiedLayout(containerWidth, idealHeight) {
+    const items = this.state.imageItems;
+    if (!items || items.length === 0) return { positions: [], totalHeight: 0 };
+    const { GAP } = this.CONFIG;
+    const costs = [0], partitions = [0];
+
+    // 1. 计算每行的最佳分割点（不变）
+    for (let i = 1; i <= items.length; i++) {
+        let minCost = Infinity, bestPartition = 0;
+        for (let j = 1; j <= i; j++) {
+            if (costs[j - 1] === Infinity) continue;
+
+            const rowItems = items.slice(j - 1, i);
+            const sumOfRatios = rowItems.reduce((sum, item) => sum + item.ratio, 0);
+            const gapSpace = (rowItems.length - 1) * GAP;
+
+            // 容错：避免除以0或无效值
+            if (containerWidth <= gapSpace || sumOfRatios <= 0 || !isFinite(sumOfRatios)) continue;
+
+            const rowHeight = (containerWidth - gapSpace) / sumOfRatios;
+            if (!isFinite(rowHeight) || rowHeight <= 0) continue;
+
+            // 计算成本（不变）
+            const currentCost = Math.pow(Math.abs(rowHeight - idealHeight), 2);
+            const totalCost = costs[j - 1] + currentCost;
+
+            if (totalCost < minCost) {
+                minCost = totalCost;
+                bestPartition = j; // 记录最佳分割点
+            }
+        }
+        costs[i] = minCost;
+        partitions[i] = bestPartition;
+    }
+
+    // 2. 生成rows时，强制每行最多3张图（已包含修复逻辑）
+    const rows = [];
+    let currentIndex = items.length;
+    const MAX_PER_ROW = 3; // 每行最多3张图，超过则拆分
+
+    while (currentIndex > 0) {
+        // 计算当前行的起始索引（优先用partitions的最佳分割点）
+        let startIndex = partitions[currentIndex];
+        // 容错1：如果分割点无效，强制从当前位置往前推MAX_PER_ROW张
+        if (startIndex <= 0 || startIndex > currentIndex) {
+            startIndex = Math.max(1, currentIndex - MAX_PER_ROW);
+        }
+        // 容错2：确保当前行不超过MAX_PER_ROW张
+        if (currentIndex - startIndex + 1 > MAX_PER_ROW) {
+            startIndex = currentIndex - MAX_PER_ROW + 1;
+        }
+        // 添加当前行
+        rows.unshift(items.slice(startIndex - 1, currentIndex));
+        currentIndex = startIndex - 1;
+    }
+
+    // 3. 生成图片位置（不变）
+    const positions = [];
+    let currentY = 0;
+    for (const rowItems of rows) {
+        const sumOfRatios = rowItems.reduce((sum, item) => sum + item.ratio, 0);
+        const gapSpace = (rowItems.length - 1) * GAP;
+        if (sumOfRatios <= 0) continue;
+
+        const rowHeight = (containerWidth - gapSpace) / sumOfRatios;
+        if (!isFinite(rowHeight)) continue;
+
+        let currentX = 0;
+        for (const item of rowItems) {
+            const itemWidth = rowHeight * item.ratio;
+            positions.push({ x: currentX, y: currentY, width: itemWidth, height: rowHeight });
+            currentX += itemWidth + GAP;
+        }
+        currentY += rowHeight + GAP;
+    }
+    const totalHeight = currentY > 0 ? currentY - GAP : 0;
+    return { positions, totalHeight };
+}
+                
+                _placeImagesInRectangle(positions) { 
+                    positions.forEach((pos, i) => this._placeSingleImage(i, pos));
+                }
+
+_placeSingleImage(index, position) {
+    const imageItem = this.state.imageItems[index];
+    if (!imageItem || !position) return;
+
+    const item = document.createElement('div');
+    item.className = 'rect-item rounded-sm fade-in';
+    item.style.cssText = `left: ${position.x}px; top: ${position.y}px; width: ${position.width}px; height: ${position.height}px;`;
+
+    const img = new Image();
+    img.src = imageItem.src;
+    img.alt = imageItem.name;
+    item.appendChild(img);
+
+    // 4. 新增：创建浮动删除按钮
+    const deleteBtn = document.createElement('div');
+    deleteBtn.className = 'delete-btn';
+    item.appendChild(deleteBtn);
+
+    // 5. 绑定删除事件，复用 deleteCurrentImage(id)
+    deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation(); // 阻止事件冒泡到 itemDiv 的点击事件 (避免打开模态框)
+            this.deleteCurrentImage(imageItem.id);
+    });
+
+    // 6. 绑定打开模态框事件
+    item.addEventListener('click', () => this.openModal(index));
+
+    this.dom.rectContainer.appendChild(item);
+}
+
+                
+                openModal(index) { this.state.currentPreviewIndex = index; this.dom.imageModal.classList.remove('hidden'); document.body.style.overflow = 'hidden'; this.updateModalContent(); }
+                closeModal() { this.dom.imageModal.classList.add('hidden'); document.body.style.overflow = ''; }
+                switchPreviewImage(direction) { const newIndex = this.state.currentPreviewIndex + direction; if (newIndex >= 0 && newIndex < this.state.imageItems.length) { this.state.currentPreviewIndex = newIndex; this.updateModalContent(); } }
+                
+                updateModalContent() {
+                    const item = this.state.imageItems[this.state.currentPreviewIndex]; if (!item) return;
+                    this.dom.modalImage.src = item.src; 
+                    this.dom.imageName.textContent = item.name;
+                    this.dom.modalImgSize.textContent = `${item.width} × ${item.height}`; 
+                    this.dom.modalImgRatio.textContent = item.ratio.toFixed(2);
+                    this.dom.currentImageIndex.textContent = this.state.currentPreviewIndex + 1;
+                    this.dom.totalImageCount.textContent = this.state.imageItems.length;
+                    this.dom.prevImageBtn.disabled = this.state.currentPreviewIndex === 0;
+                    this.dom.nextImageBtn.disabled = this.state.imageItems.length === 0 || this.state.currentPreviewIndex === this.state.imageItems.length - 1;
+                }
+                
+                clearAllImages() { 
+                    if (confirm('您确定要清空所有图片吗？')) { 
+                        this.state.imageItems = []; 
+                        this.dom.rectContainer.innerHTML = ''; 
+                        this.dom.rectContainer.appendChild(this.dom.domWatermark); // 重新添加水印层
+                        this.dom.routeNumberInput.value = '';
+                        this.updateUIState();
+                        this._updateWatermarkVisibility();
+                    } 
+                }
+                deleteCurrentImage() { 
+                    if (confirm('您确定要删除这张图片吗？')) { 
+                        this.state.imageItems.splice(this.state.currentPreviewIndex, 1); 
+                        this.closeModal(); 
+                        if (this.state.imageItems.length > 0) { 
+                            this.state.currentPreviewIndex = Math.min(this.state.currentPreviewIndex, this.state.imageItems.length - 1); 
+                            this.calculateAndRenderRectangle(); 
+                        } else { 
+                            this.updateUIState(); 
+                        } 
+                    } 
+                }
+                downloadSingleImage() { const item = this.state.imageItems[this.state.currentPreviewIndex]; if (!item) return; const a = document.createElement('a'); a.href = item.src; a.download = item.name; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
+
+
+                _resetDownloadState() {
+                    this.state.isDownloading = false;
+                    this.dom.downloadBtn.innerHTML = '<i class="fa fa-download"></i> <span>下载拼图</span>';
+                    this.dom.downloadOverlay.classList.add('hidden');
+                    this.dom.downloadOverlay.classList.remove('flex');
+                    this.dom.downloadProgressBar.style.width = '0%';
+                    this.dom.downloadProgressText.textContent = '正在等待浏览器渲染...';
+                    this.updateUIState();
+                }
+
+                // 核心：使用 html-to-image 截图 DOM 元素
+                async downloadRectangle() {
+                    if (this.state.isDownloading || this.state.imageItems.length === 0) return;
+                    const watermarkText = this.dom.routeNumberInput.value.trim();
+                    if (watermarkText === '') { this.updateUIState(); return; }
+
+                    this.state.isDownloading = true;
+                    this.dom.downloadOverlay.classList.remove('hidden'); this.dom.downloadOverlay.classList.add('flex');
+                    this.dom.downloadBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> <span>正在生成...</span>';
+                    
+                    const currentScale = getScale();
+                    this.dom.downloadOverlay.querySelector('p:first-child').textContent = `正在生成 ${currentScale}倍 大图...`;
+                    
+                    this.updateUIState();
+                    
+                    const targetElement = this.dom.rectContainer;
+                    
+                    // --- 暂存原始样式 ---
+                    const originalRectShadow = targetElement.style.boxShadow;
+                    const originalRectBorder = targetElement.style.border;
+
+                    try {
+                        // --- 关键修复 1: 隐藏下载遮罩 ---
+                        const overlayWasVisible = !this.dom.downloadOverlay.classList.contains('hidden');
+                        if(overlayWasVisible) {
+                            this.dom.downloadOverlay.style.visibility = 'hidden'; 
+                        }
+
+                        // --- 关键修复 2：暂时移除干扰样式 (保留此步骤以防万一) ---
+                        targetElement.style.boxShadow = 'none';
+                        targetElement.style.border = 'none';
+                        
+                        await new Promise(resolve => setTimeout(resolve, 50)); 
+                        
+                        // 3. 使用 htmlToImage 截图
+                        const dataUrl = await htmlToImage.toJpeg(targetElement, {
+                            quality: this.CONFIG.JPEG_QUALITY, 
+                            pixelRatio: currentScale, 
+                            backgroundColor: '#ffffff', // 再次硬编码背景色
+                            skipFonts: true, 
+                        });
+
+
+                        // 4. 恢复 DOM 样式
+                        targetElement.style.boxShadow = originalRectShadow;
+                        targetElement.style.border = originalRectBorder;
+
+                        // 5. 恢复下载遮罩的可见性
+                        if(overlayWasVisible) {
+                            this.dom.downloadOverlay.style.visibility = 'visible';
+                        }
+                        
+                        // 6. 导出 dataUrl (html-to-image 直接返回 DataURL)
+                        const a = document.createElement('a');
+                        a.href = dataUrl;
+                        a.download = `${watermarkText}-S${currentScale}x-${Date.now()}.jpeg`; 
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        
+                    } catch (error) {
+                        console.error('Download Failed:', error);
+                        // 恢复样式
+                        targetElement.style.boxShadow = originalRectShadow;
+                        targetElement.style.border = originalRectBorder;
+
+                        alert(`下载失败: ${error.message}\n\n原因：可能是浏览器环境兼容性问题或内存不足。\n请尝试在**清晰度**选项中切换到 **1x (普通)** 模式。`);
+                    } finally {
+                        this._resetDownloadState();
+                    }
+                }
+                
+                updateUIState() {
+                    const hasImages = this.state.imageItems.length > 0;
+                    const routeNumberEntered = this.dom.routeNumberInput.value.trim() !== '';
+                    const inputElement = this.dom.routeNumberInput;
+                    
+                    this.dom.imageContainerParent.classList.remove('hidden'); 
+                    this.dom.emptyState.classList.toggle('hidden', hasImages);
+                    this.dom.rectContainer.classList.toggle('hidden', !hasImages);
+                    this.dom.statsBar.classList.toggle('hidden', !hasImages);
+                    
+                    this.dom.regenerateBtn.disabled = !hasImages || this.state.isDownloading;
+                    this.dom.downloadBtn.disabled = !hasImages || this.state.isDownloading || !routeNumberEntered;
+                    this.dom.clearBtn.disabled = !hasImages || this.state.isDownloading;
+                    this.dom.fileInputTopLabel.style.opacity = this.state.isDownloading ? 0.6 : 1;
+
+                    this.dom.rightControls.classList.toggle('hidden', !hasImages && this.dom.statsBar.classList.contains('hidden'));
+                    
+                    if (hasImages && !routeNumberEntered && !this.state.isDownloading) {
+                        inputElement.classList.add('animate-pulse-primary', 'border-error'); 
+                    } else {
+                        inputElement.classList.remove('animate-pulse-primary', 'border-error');
+                    }
+                    }
+            }
+
+            // --- Initialization ---
+            new GalleryOptimizer();
+            
+            // --- Footer Copyright and Quote Rotator (保持不变) ---
+            const START_YEAR = 2024;
+            const currentYear = new Date().getFullYear();
+            const yearString = currentYear > START_YEAR ? `${START_YEAR}-${currentYear}` : `${START_YEAR}`;
+            document.getElementById('copyrightFooter').textContent = `${yearString} | 深高创新•学生义工拼图工具 | it王工@2024级创新线长`;
+            
+function setupQuoteRotator() {
+    // 先检查元素是否存在，避免报错
+    const quoteElement = document.getElementById('currentQuote');
+    if (!quoteElement) {
+        console.warn('语录元素未找到');
+        return;
+    }
+    // 简化语录数组，确保有内容
+    const regularQuotes = [
+        "天行健，君子以自强不息","IT王工思路妙，难题一来全解掉！","世上无难事，只怕有心人", "王工出品，必属精品"
+    ];
+    const itPool = ["IT王工技术好，排班效率节节高！"];
+    const finalQuotes = [...regularQuotes, ...itPool];
+    // 确保数组不为空
+    if (finalQuotes.length === 0) {
+        finalQuotes.push("奋斗的青春最美丽");
+    }
+    // 初始显示+定时切换
+    let currentIndex = 0;
+    quoteElement.textContent = finalQuotes[currentIndex];
+    setInterval(() => {
+        currentIndex = (currentIndex + 1) % finalQuotes.length;
+        quoteElement.classList.add('opacity-0');
+        setTimeout(() => {
+            quoteElement.textContent = finalQuotes[currentIndex];
+            quoteElement.classList.remove('opacity-0');
+        }, 500);
+    }, 5000);
+}
+
+            setupQuoteRotator();
+        });
+    </script>
+</body>
+</html>
