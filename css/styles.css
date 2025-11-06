@@ -433,5 +433,83 @@ body {
 /* 进度条 */
 #loadingBar, #downloadProgressBar {
   height: 6px;
-  border-radius: 6
+  border-radius: 6px;
+  border-radius: 6px;
+  transition: width 0.33s cubic-bezier(0.44, 0, 0.62, 1);
+  background: linear-gradient(to right, rgb(var(--color-primary)), #89f7fe);
+}
+
+/* 响应式 */
+@media (max-width: 640px) {
+  .text-title {
+    font-size: 1.5rem;
+  }
+  
+  .rect-container {
+    min-height: 250px;
+  }
+  
+  .controls-bar {
+    flex-direction: column !important;
+    gap: 4px !important;
+  }
+  
+  .ratio-quality-btn {
+    min-height: 28px;
+    padding: 3px 8px !important;
+    font-size: 0.75rem;
+  }
+  
+  .route-input-base {
+    width: 100px !important;
+    max-width: 100px;
+  }
+  
+  #emptyState {
+    padding: 30px 8px;
+    gap: 16px;
+  }
+  
+  #emptyState svg {
+    width: 60px;
+    height: 60px;
+  }
+}
+
+/* 暗黑模式补充 */
+.dark .ratio-quality-btn {
+  background: #2a2a2a;
+  border-color: #444;
+}
+
+.dark .ratio-quality-btn.active {
+  background-image: linear-gradient(to top, rgb(var(--color-primary-dark)), rgb(var(--color-primary)));
+}
+
+.dark .route-input-base {
+  background: #2a2a2a;
+  border-color: #444;
+  color: var(--text-primary);
+}
+
+.dark .route-input-base::placeholder {
+  color: #888;
+}
+
+.dark #emptyState {
+  background: rgba(42, 42, 42, 0.8);
+}
+
+.dark #emptyState svg {
+  color: rgb(var(--color-primary));
+}
+
+.dark .rect-item {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.dark .rect-item:hover {
+  box-shadow: 0 6px 18px rgba(var(--color-primary), 0.2);
+}
+
 
