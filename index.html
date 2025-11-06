@@ -1,111 +1,292 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>拼图工具 v1.0.6 - 在线拼图合成</title>
-  
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"/>
-  <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js"></script>
-  
-  <link rel="stylesheet" href="css/styles.css">
-</head>
-<body>
-  <div class="container mx-auto px-4 py-8">
-    <div class="text-center mb-8">
-      <h1 class="text-title">拼图工具 v1.0.6</h1>
-      <div class="text-desc">支持多张图片自由拖拽、拼接与下载。图片自动自适应布局，支持JPEG/PNG/WEBP格式。</div>
-    </div>
+_calculateJustifiedLayout(containerWidth, idealHeight) {
+    const items = this.state.imageItems;
+    if (!items || items.length === 0) return { positions: [], totalHeight: 0 };
+    const { GAP } = this.CONFIG;
+    const costs = [0], partitions = [0];
 
-    <div id="emptyState" class="shadow-soft rounded-lg">
-      <svg class="mx-auto h-20 w-20 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-12 5h12a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
-      </svg>
-      <p class="text-2xl sm:text-3xl font-black text-gray-800">拖拽图片到此处上传</p>
-      <p class="text-base text-gray-500 mb-2">（支持多张图片同时上传，文件格式：JPEG/PNG/WEBP）</p>
-      <label for="fileInput" id="emptyStateUploadLabel" class="primary-btn rounded-full">
-        <i class="fa fa-upload"></i> 选取图片
-      </label>
-      <input type="file" id="fileInput" multiple class="hidden" accept="image/*"/>
-    </div>
+    // 1. 计算每行的最佳分割点（不变）
+    for (let i = 1; i <= items.length; i++) {
+        let minCost = Infinity, bestPartition = 0;
+        for (let j = 1; j <= i; j++) {
+            if (costs[j - 1] === Infinity) continue;
 
-    <div id="imageContainerParent" class="flex justify-center items-center bg-white p-2 sm:p-4 rounded-2xl shadow-apple relative w-full mt-1.5 min-h-80">
-      <div id="rectContainer" class="rect-container shadow-inner border-2 border-gray-200 rounded-lg">
-        <div id="domWatermark" class="text-4xl"></div>
-      </div>
-      <div id="downloadOverlay" class="hidden absolute inset-0 bg-white/90 backdrop-blur-sm z-20 rounded-2xl flex-col justify-center items-center p-8 text-center space-y-4"></div>
-      <div id="loadingState" class="hidden absolute inset-0 bg-white/90 z-10 flex flex-col justify-center items-center p-8 text-center space-y-4 rounded-2xl"></div>
-    </div>
+            const rowItems = items.slice(j - 1, i);
+            const sumOfRatios = rowItems.reduce((sum, item) => sum + item.ratio, 0);
+            const gapSpace = (rowItems.length - 1) * GAP;
 
-    <div id="statsBar" class="bg-white p-1 rounded-2xl shadow-apple w-full flex flex-col gap-1 mt-1 hidden">
-      <div class="controls-bar flex flex-wrap justify-between items-center gap-x-2 gap-y-1">
-        <div class="flex items-center gap-0">
-          <span class="font-semibold text-gray-700 mr-1 text-xs sm:text-lg">宽高比:</span>
-          <input type="radio" name="aspectRatio" id="ratio-16-9" value="16:9" class="hidden">
-          <label for="ratio-16-9" class="ratio-quality-btn cursor-pointer text-xs" data-value="16:9" data-group="aspectRatio">16:9</label>
-          <input type="radio" name="aspectRatio" id="ratio-4-3" value="4:3" class="hidden" checked>
-          <label for="ratio-4-3" class="ratio-quality-btn cursor-pointer text-xs" data-value="4:3" data-group="aspectRatio">4:3</label>
-          <input type="radio" name="aspectRatio" id="ratio-1-1" value="1:1" class="hidden">
-          <label for="ratio-1-1" class="ratio-quality-btn cursor-pointer text-xs" data-value="1:1" data-group="aspectRatio">1:1</label>
-        </div>
+            // 容错：避免除以0或无效值
+            if (containerWidth <= gapSpace || sumOfRatios <= 0 || !isFinite(sumOfRatios)) continue;
 
-        <div class="flex items-center gap-0">
-          <span class="font-semibold text-gray-700 mr-1 text-xs sm:text-lg">质量:</span>
-          <input type="radio" name="renderQuality" id="quality-1x" value="1" class="hidden">
-          <label for="quality-1x" class="ratio-quality-btn cursor-pointer text-xs" data-value="1" data-group="renderQuality">1x</label>
-          <input type="radio" name="renderQuality" id="quality-2x" value="2" class="hidden" checked>
-          <label for="quality-2x" class="ratio-quality-btn cursor-pointer text-xs" data-value="2" data-group="renderQuality">2x</label>
-          <input type="radio" name="renderQuality" id="quality-3x" value="3" class="hidden">
-          <label for="quality-3x" class="ratio-quality-btn cursor-pointer text-xs" data-value="3" data-group="renderQuality">3x</label>
-        </div>
+            const rowHeight = (containerWidth - gapSpace) / sumOfRatios;
+            if (!isFinite(rowHeight) || rowHeight <= 0) continue;
 
-        <textarea id="routeNumberInput" placeholder="输入水印文字（可选）" maxlength="130" rows="1" class="route-input-base text-xs"></textarea>
-        <button id="downloadBtn" class="primary-capsule-btn text-xs"><i class="fa fa-download"></i> 下载拼图</button>
-      </div>
-    </div>
+            // 计算成本（不变）
+            const currentCost = Math.pow(Math.abs(rowHeight - idealHeight), 2);
+            const totalCost = costs[j - 1] + currentCost;
 
-    <div id="imageModal" class="fixed inset-0 bg-black bg-opacity-80 backdrop-blur-md hidden flex items-center justify-center z-50 p-4" aria-modal="true" role="dialog">
-      <div class="relative bg-white rounded-2xl w-full max-w-screen-xl max-h-90vh flex flex-col shadow-apple">
-        <div class="p-4 border-b flex justify-between items-center bg-gray-50/50 rounded-t-2xl h-3">
-          <h3 id="imageName" class="text-lg sm:text-xl font-bold truncate"></h3>
-          <button id="closeModal" class="secondary-btn p-2 rounded-full text-gray-500 hover:text-gray-800 transition" title="关闭">
-            <i class="fa fa-times text-base"></i>
-          </button>
-        </div>
-        <div class="relative flex-grow overflow-hidden flex items-center justify-center p-0 sm:p-4">
-          <img id="modalImage" src="" alt="预览" class="object-contain max-h-full max-w-full">
-        </div>
-        <div class="p-4 border-t flex justify-between items-center flex-wrap space-y-2 sm:space-y-0 text-sm sm:text-base bg-gray-50/50 rounded-b-2xl">
-          <div class="flex items-center space-x-4 text-gray-600">
-            <p><span id="modalImgSize" class="font-semibold"></span></p>
-            <p><span id="modalImgRatio" class="font-semibold"></span></p>
-          </div>
-          <div class="flex items-center space-x-3">
-            <button id="downloadSingleBtn" class="secondary-btn"><i class="fa fa-download mr-1"></i>下载</button>
-            <button id="deleteSingleBtn" class="secondary-btn"><i class="fa fa-trash mr-1"></i>删除</button>
-          </div>
-          <div class="flex items-center space-x-4 ml-auto sm:ml-0 mt-2 sm:mt-0">
-            <button id="prevImageBtn" class="secondary-btn p-2 rounded-full disabled:opacity-50 transition" title="上一张">
-              <i class="fa fa-arrow-left"></i>
-            </button>
-            <span class="font-bold text-gray-700"><span id="currentImageIndex">1</span> / <span id="totalImageCount">1</span></span>
-            <button id="nextImageBtn" class="secondary-btn p-2 rounded-full disabled:opacity-50 transition" title="下一张">
-              <i class="fa fa-arrow-right"></i>
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+            if (totalCost < minCost) {
+                minCost = totalCost;
+                bestPartition = j; // 记录最佳分割点
+            }
+        }
+        costs[i] = minCost;
+        partitions[i] = bestPartition;
+    }
 
-  <footer class="p-3 text-center text-sm text-gray-500">
-    <p id="copyrightFooter">© 2024 Pin Tu Gong Ju</p>
-    <p id="currentQuote" class="transition-opacity duration-1000 opacity-100 p-4 text-sm sm:text-base text-gray-500"></p>
-  </footer>
+// 2. 生成rows时，不限制每行数量（与电脑端逻辑一致）
+const rows = [];
+let currentIndex = items.length;
 
-  <script src="js/gallery-optimizer.js"></script>
-  <script src="js/ui-controller.js"></script>
-  <script src="js/main.js"></script>
+while (currentIndex > 0) {
+    // 直接使用最佳分割点，不限制每行数量
+    let startIndex = partitions[currentIndex];
+    // 容错：如果分割点无效，从当前位置往前推（最多5张，避免极端情况）
+    if (startIndex <= 0 || startIndex > currentIndex) {
+        startIndex = Math.max(1, currentIndex - 5); // 最多取前5张，避免单行过多
+    }
+    // 添加当前行（数量由最佳分割点决定）
+    rows.unshift(items.slice(startIndex - 1, currentIndex));
+    currentIndex = startIndex - 1;
+}
+
+    // 3. 生成图片位置（不变）
+    const positions = [];
+    let currentY = 0;
+    for (const rowItems of rows) {
+        const sumOfRatios = rowItems.reduce((sum, item) => sum + item.ratio, 0);
+        const gapSpace = (rowItems.length - 1) * GAP;
+        if (sumOfRatios <= 0) continue;
+
+        const rowHeight = (containerWidth - gapSpace) / sumOfRatios;
+        if (!isFinite(rowHeight)) continue;
+
+        let currentX = 0;
+        for (const item of rowItems) {
+            const itemWidth = rowHeight * item.ratio;
+            positions.push({ x: currentX, y: currentY, width: itemWidth, height: rowHeight });
+            currentX += itemWidth + GAP;
+        }
+        currentY += rowHeight + GAP;
+    }
+    const totalHeight = currentY > 0 ? currentY - GAP : 0;
+    return { positions, totalHeight };
+}
+                
+                _placeImagesInRectangle(positions) { 
+                    positions.forEach((pos, i) => this._placeSingleImage(i, pos));
+                }
+
+_placeSingleImage(index, position) {
+    const imageItem = this.state.imageItems[index];
+    if (!imageItem || !position) return;
+
+    const item = document.createElement('div');
+    item.className = 'rect-item rounded-sm fade-in';
+    item.style.cssText = `left: ${position.x}px; top: ${position.y}px; width: ${position.width}px; height: ${position.height}px;`;
+
+    const img = new Image();
+    img.src = imageItem.src;
+    img.alt = imageItem.name;
+    item.appendChild(img);
+
+
+    // 6. 绑定打开模态框事件
+    item.addEventListener('click', () => this.openModal(index));
+
+    this.dom.rectContainer.appendChild(item);
+}
+
+                
+                openModal(index) { this.state.currentPreviewIndex = index; this.dom.imageModal.classList.remove('hidden'); document.body.style.overflow = 'hidden'; this.updateModalContent(); }
+                closeModal() { this.dom.imageModal.classList.add('hidden'); document.body.style.overflow = ''; }
+                switchPreviewImage(direction) { const newIndex = this.state.currentPreviewIndex + direction; if (newIndex >= 0 && newIndex < this.state.imageItems.length) { this.state.currentPreviewIndex = newIndex; this.updateModalContent(); } }
+                
+                updateModalContent() {
+                    const item = this.state.imageItems[this.state.currentPreviewIndex]; if (!item) return;
+                    this.dom.modalImage.src = item.src; 
+                    this.dom.imageName.textContent = item.name;
+                    this.dom.modalImgSize.textContent = `${item.width} × ${item.height}`; 
+                    this.dom.modalImgRatio.textContent = item.ratio.toFixed(2);
+                    this.dom.currentImageIndex.textContent = this.state.currentPreviewIndex + 1;
+                    this.dom.totalImageCount.textContent = this.state.imageItems.length;
+                    this.dom.prevImageBtn.disabled = this.state.currentPreviewIndex === 0;
+                    this.dom.nextImageBtn.disabled = this.state.imageItems.length === 0 || this.state.currentPreviewIndex === this.state.imageItems.length - 1;
+                }
+                
+                clearAllImages() { 
+                    if (confirm('您确定要清空所有图片吗？')) { 
+                        this.state.imageItems = []; 
+                        this.dom.rectContainer.innerHTML = ''; 
+                        this.dom.rectContainer.appendChild(this.dom.domWatermark); // 重新添加水印层
+                        this.dom.routeNumberInput.value = '';
+                        this.updateUIState();
+                        this._updateWatermarkVisibility();
+                    } 
+                }
+                deleteCurrentImage() { 
+                    if (confirm('您确定要删除这张图片吗？')) { 
+                        this.state.imageItems.splice(this.state.currentPreviewIndex, 1); 
+                        this.closeModal(); 
+                        if (this.state.imageItems.length > 0) { 
+                            this.state.currentPreviewIndex = Math.min(this.state.currentPreviewIndex, this.state.imageItems.length - 1); 
+                            this.calculateAndRenderRectangle(); 
+                        } else { 
+                            this.updateUIState(); 
+                        } 
+                    } 
+                }
+                downloadSingleImage() { const item = this.state.imageItems[this.state.currentPreviewIndex]; if (!item) return; const a = document.createElement('a'); a.href = item.src; a.download = item.name; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
+
+
+                _resetDownloadState() {
+                    this.state.isDownloading = false;
+                    this.dom.downloadBtn.innerHTML = '<i class="fa fa-download"></i> <span>下载拼图</span>';
+                    this.dom.downloadOverlay.classList.add('hidden');
+                    this.dom.downloadOverlay.classList.remove('flex');
+                    this.dom.downloadProgressBar.style.width = '0%';
+                    this.dom.downloadProgressText.textContent = '正在等待浏览器渲染...';
+                    this.updateUIState();
+                }
+
+                // 核心：使用 html-to-image 截图 DOM 元素
+                async downloadRectangle() {
+                    if (this.state.isDownloading || this.state.imageItems.length === 0) return;
+                    const watermarkText = this.dom.routeNumberInput.value.trim();
+                    if (watermarkText === '') { this.updateUIState(); return; }
+
+                    this.state.isDownloading = true;
+                    this.dom.downloadOverlay.classList.remove('hidden'); this.dom.downloadOverlay.classList.add('flex');
+                    this.dom.downloadBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> <span>正在生成...</span>';
+                    
+                    const currentScale = getScale();
+                    this.dom.downloadOverlay.querySelector('p:first-child').textContent = `正在生成 ${currentScale}倍 大图...`;
+                    
+                    this.updateUIState();
+                    
+                    const targetElement = this.dom.rectContainer;
+                    
+                    // --- 暂存原始样式 ---
+                    const originalRectShadow = targetElement.style.boxShadow;
+                    const originalRectBorder = targetElement.style.border;
+
+                    try {
+                        // --- 关键修复 1: 隐藏下载遮罩 ---
+                        const overlayWasVisible = !this.dom.downloadOverlay.classList.contains('hidden');
+                        if(overlayWasVisible) {
+                            this.dom.downloadOverlay.style.visibility = 'hidden'; 
+                        }
+
+                        // --- 关键修复 2：暂时移除干扰样式 (保留此步骤以防万一) ---
+                        targetElement.style.boxShadow = 'none';
+                        targetElement.style.border = 'none';
+                        
+                        await new Promise(resolve => setTimeout(resolve, 50)); 
+                        
+                        // 3. 使用 htmlToImage 截图
+                        const dataUrl = await htmlToImage.toJpeg(targetElement, {
+                            quality: this.CONFIG.JPEG_QUALITY, 
+                            pixelRatio: currentScale, 
+                            backgroundColor: '#ffffff', // 再次硬编码背景色
+                            skipFonts: true, 
+                        });
+
+
+                        // 4. 恢复 DOM 样式
+                        targetElement.style.boxShadow = originalRectShadow;
+                        targetElement.style.border = originalRectBorder;
+
+                        // 5. 恢复下载遮罩的可见性
+                        if(overlayWasVisible) {
+                            this.dom.downloadOverlay.style.visibility = 'visible';
+                        }
+                        
+                        // 6. 导出 dataUrl (html-to-image 直接返回 DataURL)
+                        const a = document.createElement('a');
+                        a.href = dataUrl;
+                        a.download = `${watermarkText}-S${currentScale}x-${Date.now()}.jpeg`; 
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        
+                    } catch (error) {
+                        console.error('Download Failed:', error);
+                        // 恢复样式
+                        targetElement.style.boxShadow = originalRectShadow;
+                        targetElement.style.border = originalRectBorder;
+
+                        alert(`下载失败: ${error.message}\n\n原因：可能是浏览器环境兼容性问题或内存不足。\n请尝试在**清晰度**选项中切换到 **1x (普通)** 模式。`);
+                    } finally {
+                        this._resetDownloadState();
+                    }
+                }
+                
+                updateUIState() {
+                    const hasImages = this.state.imageItems.length > 0;
+                    const routeNumberEntered = this.dom.routeNumberInput.value.trim() !== '';
+                    const inputElement = this.dom.routeNumberInput;
+                    
+                    this.dom.imageContainerParent.classList.remove('hidden'); 
+                    this.dom.emptyState.classList.toggle('hidden', hasImages);
+                    this.dom.rectContainer.classList.toggle('hidden', !hasImages);
+                    this.dom.statsBar.classList.toggle('hidden', !hasImages);
+                    
+                    this.dom.regenerateBtn.disabled = !hasImages || this.state.isDownloading;
+                    this.dom.downloadBtn.disabled = !hasImages || this.state.isDownloading || !routeNumberEntered;
+                    this.dom.clearBtn.disabled = !hasImages || this.state.isDownloading;
+                    this.dom.fileInputTopLabel.style.opacity = this.state.isDownloading ? 0.6 : 1;
+
+                    if (hasImages && !routeNumberEntered && !this.state.isDownloading) {
+                        inputElement.classList.add('animate-pulse-primary', 'border-error'); 
+                    } else {
+                        inputElement.classList.remove('animate-pulse-primary', 'border-error');
+                    }
+                    }
+            }
+
+            // --- Initialization ---
+            new GalleryOptimizer();
+            
+            // --- Footer Copyright and Quote Rotator (保持不变) ---
+            const START_YEAR = 2024;
+            const currentYear = new Date().getFullYear();
+            const yearString = currentYear > START_YEAR ? `${START_YEAR}-${currentYear}` : `${START_YEAR}`;
+            document.getElementById('copyrightFooter').textContent = `${yearString} | 深高创新•学生义工拼图工具 | it王工@2024级创新线长`;
+            
+function setupQuoteRotator() {
+    // 先检查元素是否存在，避免报错
+    const quoteElement = document.getElementById('currentQuote');
+    if (!quoteElement) {
+        console.warn('语录元素未找到');
+        return;
+    }
+    // 简化语录数组，确保有内容
+    const regularQuotes = [
+        "天行健，君子以自强不息","IT王工思路妙，难题一来全解掉！","世上无难事，只怕有心人", "王工出品，必属精品"
+    ];
+    const itPool = ["IT王工技术好，排班效率节节高！"];
+    const finalQuotes = [...regularQuotes, ...itPool];
+    // 确保数组不为空
+    if (finalQuotes.length === 0) {
+        finalQuotes.push("奋斗的青春最美丽");
+    }
+    // 初始显示+定时切换
+    let currentIndex = 0;
+    quoteElement.textContent = finalQuotes[currentIndex];
+    setInterval(() => {
+        currentIndex = (currentIndex + 1) % finalQuotes.length;
+        quoteElement.classList.add('opacity-0');
+        setTimeout(() => {
+            quoteElement.textContent = finalQuotes[currentIndex];
+            quoteElement.classList.remove('opacity-0');
+        }, 500);
+    }, 5000);
+}
+
+            setupQuoteRotator();
+                });
+
+
+
+    </script>
 </body>
 </html>
