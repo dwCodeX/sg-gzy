@@ -1,146 +1,2680 @@
-_calculateJustifiedLayout(containerWidth, idealHeight) {
-    const items = this.state.imageItems;
-    if (!items || items.length === 0) return { positions: [], totalHeight: 0 };
-    const { GAP } = this.CONFIG;
-    const costs = [0], partitions = [0];
+<!DOCTYPE html>
+<html lang="zh-CN">
 
-    // 1. 计算每行的最佳分割点（不变）
-    for (let i = 1; i <= items.length; i++) {
-        let minCost = Infinity, bestPartition = 0;
-        for (let j = 1; j <= i; j++) {
-            if (costs[j - 1] === Infinity) continue;
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>深高创新•学生义工拼图工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js"
+            onerror="(function(){var s=document.createElement('script');s.src='https://unpkg.com/html-to-image@1.11.11/dist/html-to-image.min.js';document.head.appendChild(s);})();"></script>
+    <link rel="stylesheet" href="styles.css">
+    <style media="not all">
+        /*==========================
+            全局变量和基础样式
+        ==========================*/
 
-            const rowItems = items.slice(j - 1, i);
-            const sumOfRatios = rowItems.reduce((sum, item) => sum + item.ratio, 0);
-            const gapSpace = (rowItems.length - 1) * GAP;
+        :root {
+            /* 颜色变量 */
+            --color-primary: 124, 58, 237;
+            --color-primary-dark: 109, 40, 217;
+            --color-secondary: 220, 220, 225;
+            --color-secondary-dark: 209, 213, 219;
+            --color-body-bg: 247, 247, 250;
+            --color-gray-50: 249, 250, 251;
+            --color-gray-100: 243, 244, 246;
+            --color-gray-500: 107, 114, 128;
+            --color-gray-700: 55, 65, 81;
+            --color-gray-800: 31, 41, 55;
+            --color-white: 255, 255, 255;
+            --color-black: 0, 0, 0;
 
-            // 容错：避免除以0或无效值
-            if (containerWidth <= gapSpace || sumOfRatios <= 0 || !isFinite(sumOfRatios)) continue;
+            /* 阴影变量 */
+            --shadow-apple-soft: 0 1px 3px rgba(0, 0, 0, 0.08);
+            --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.04);
+            --shadow-btn: 0 1px 3px rgba(var(--color-primary), 0.2);
+            --shadow-btn-hover: 0 3px 10px rgba(var(--color-primary), 0.3);
+            --shadow-inner: inset 0 1px 2px rgba(0, 0, 0, 0.05);
 
-            const rowHeight = (containerWidth - gapSpace) / sumOfRatios;
-            if (!isFinite(rowHeight) || rowHeight <= 0) continue;
+            /* 过渡动画 */
+            --transition-fast: 0.2s;
+            --transition-normal: 0.35s;
+            --transition-slow: 0.6s;
 
-            // 计算成本（不变）
-            const currentCost = Math.pow(Math.abs(rowHeight - idealHeight), 2);
-            const totalCost = costs[j - 1] + currentCost;
 
-            if (totalCost < minCost) {
-                minCost = totalCost;
-                bestPartition = j; // 记录最佳分割点
+            /* 字体大小 */
+            --font-base: clamp(12px, 0.4vw + 0.5rem, 16px);
+            --font-sm: clamp(10px, 0.3vw + 0.5rem, 14px);
+            --font-lg: clamp(8px, 0.5vw + 0.5rem, 18px);
+            --btn-font-size: clamp(14px, 1.1vw, 18px);
+            --control-btn-font-size: clamp(12px, 1.2vw, 18px);
+
+            /* 响应式断点 */
+            --mobile-breakpoint: 640px;
+        }
+
+        html,
+        body {
+            height: 100%;
+            /* 占满屏幕高度 */
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+            background-color: rgb(var(--color-body-bg));
+            transition: background-color 0.3s ease;
+            min-height: 100vh;
+        }
+
+        .shadow-apple {
+            box-shadow: var(--shadow-card);
+        }
+
+        .bg-primary {
+            background-color: rgb(var(--color-primary));
+        }
+
+        .hover\:bg-primary-dark:hover {
+            background-color: rgb(var(--color-primary-dark));
+        }
+
+        .text-primary {
+            color: rgb(var(--color-primary));
+        }
+
+        .border-primary {
+            border-color: rgb(var(--color-primary));
+        }
+
+        .focus\:border-primary:focus {
+            border-color: rgb(var(--color-primary));
+        }
+
+        .bg-secondary {
+            background-color: rgb(var(--color-secondary));
+        }
+
+        .hover\:bg-secondary-dark:hover {
+            background-color: rgb(var(--color-secondary-dark));
+        }
+
+        /*==========================
+            基础组件样式
+        ==========================*/
+        /* 控制栏容器 */
+
+        #statsBar {
+            padding: clamp(1px, 0.1vw, 2px) clamp(2px, 0.2vw, 4px) !important;
+            margin: clamp(1px, 0.1vw, 2px) 0 !important;
+            min-height: auto !important;
+            /* 禁止固定最小高度 */
+            height: auto !important;
+            /* 由内容决定高度 */
+            display: flex !important;
+        }
+
+        .controls-container {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            justify-content: flex-end !important;
+            align-items: center !important;
+            width: 100% !important;
+            gap: clamp(4px, 0.6vw, 8px) !important;
+            padding: clamp(1px, 0.1vw, 2px) !important;
+            box-sizing: border-box !important;
+            overflow-x: auto !important;
+            /* 允许横向滚动 */
+        }
+
+        /* 子容器保持不换行（布局和清晰度内部不拆分） */
+        .controls-container>div {
+            display: flex !important;
+            flex-wrap: nowrap !important;
+            align-items: center !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            gap: 0 !important;
+            /* 统一由父元素 gap 控制间距 */
+        }
+
+        /* 最后一组移除右边距，避免整体右移 */
+        .controls-container>div:last-child {
+            margin: 0 !important;
+        }
+
+        /* 滚动条样式 */
+        .controls-container::-webkit-scrollbar {
+            height: 3px !important;
+        }
+
+        .controls-container::-webkit-scrollbar-thumb {
+            background-color: rgba(var(--color-primary), 0.3) !important;
+            border-radius: 3px !important;
+        }
+
+        #emptyState {
+            position: absolute !important;
+            top: 50% !important;
+            left: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            text-align: center !important;
+            z-index: 1 !important;
+            display: none !important;
+            flex-direction: column !important;
+            justify-content: center !important;
+            align-items: center !important;
+            padding: clamp(1rem, 1vh, 3rem) !important;
+            margin: 0 !important;
+            gap: clamp(1rem, 2vw, 2rem) !important;
+        }
+
+        /* 仅针对功能型隐藏元素生效，不影响响应式文本 */
+        #emptyState.hidden,
+        #loadingState.hidden,
+        #actionDropdown.hidden,
+        #imageModal.hidden,
+        #downloadOverlay.hidden {
+            display: none !important;
+        }
+
+        /* 保留空状态显示逻辑 */
+        #emptyState:not(.hidden) {
+            display: flex !important;
+        }
+
+
+
+        .rect-item {
+            position: absolute;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: transparent;
+            cursor: pointer;
+            box-sizing: border-box !important;
+        }
+
+        .rect-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain !important;
+            transition: transform var(--transition-normal) ease !important;
+        }
+
+        .rect-item:hover img {
+            transform: scale(1.05);
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
             }
         }
-        costs[i] = minCost;
-        partitions[i] = bestPartition;
-    }
 
-// 2. 生成rows时，不限制每行数量（与电脑端逻辑一致）
-const rows = [];
-let currentIndex = items.length;
-
-while (currentIndex > 0) {
-    // 直接使用最佳分割点，不限制每行数量
-    let startIndex = partitions[currentIndex];
-    // 容错：如果分割点无效，从当前位置往前推（最多5张，避免极端情况）
-    if (startIndex <= 0 || startIndex > currentIndex) {
-        startIndex = Math.max(1, currentIndex - 5); // 最多取前5张，避免单行过多
-    }
-    // 添加当前行（数量由最佳分割点决定）
-    rows.unshift(items.slice(startIndex - 1, currentIndex));
-    currentIndex = startIndex - 1;
-}
-
-    // 3. 生成图片位置（不变）
-    const positions = [];
-    let currentY = 0;
-    for (const rowItems of rows) {
-        const sumOfRatios = rowItems.reduce((sum, item) => sum + item.ratio, 0);
-        const gapSpace = (rowItems.length - 1) * GAP;
-        if (sumOfRatios <= 0) continue;
-
-        const rowHeight = (containerWidth - gapSpace) / sumOfRatios;
-        if (!isFinite(rowHeight)) continue;
-
-        let currentX = 0;
-        for (const item of rowItems) {
-            const itemWidth = rowHeight * item.ratio;
-            positions.push({ x: currentX, y: currentY, width: itemWidth, height: rowHeight });
-            currentX += itemWidth + GAP;
+        /* 水印层样式 */
+        #domWatermark {
+            position: absolute;
+            /* 保持绝对定位 */
+            z-index: 100;
+            font-weight: bold;
+            text-align: center;
+            -webkit-text-stroke: 0.8px rgba(255, 255, 255, 0.85);
+            text-stroke: 0.8px rgba(255, 255, 255, 0.85);
+            color: rgba(var(--color-primary), 0.7);
+            opacity: 0.8;
+            pointer-events: none;
+            user-select: none;
+            transform: rotate(-15deg);
+            /* 保留旋转效果 */
+            white-space: nowrap;
+            overflow: hidden;
+            line-height: 1.2;
+            max-height: 80%;
+            font-size: clamp(2.5rem, 10vw, 6rem);
         }
-        currentY += rowHeight + GAP;
-    }
-    const totalHeight = currentY > 0 ? currentY - GAP : 0;
-    return { positions, totalHeight };
+
+        .controls-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: clamp(1rem, 2vw, 2rem) !important;
+            box-sizing: border-box;
+            padding: clamp(1px, 0.1vw, 2px) clamp(2px, 0.2vw, 4px) !important;
+            width: 100% !important;
+            max-width: 100% !important;
+        }
+
+        .controls-bar .stats-group,
+        .controls-bar .actions-group {
+            display: flex;
+            align-items: center;
+            flex-wrap: nowrap;
+            gap: clamp(1rem, 2vw, 2rem) !important;
+        }
+
+        .controls-bar>* {
+            margin: 0 !important;
+            flex-shrink: 0;
+        }
+
+        /*==========================
+            按钮和输入框样式
+        ==========================*/
+
+        /* 通用按钮 */
+        .unified-btn {
+            padding: calc(clamp(1px, 0.1vw, 2px) + 2px) calc(clamp(2px, 0.2vw, 4px) + 2px) !important;
+            min-height: clamp(30px, 3vw, 38px) !important;
+            line-height: normal !important;
+            /* 关键：将行高改为normal，避免文字强制贴顶 */
+            align-items: center;
+            /* 确保flex布局下内容垂直居中（原有可能遗漏） */
+            color: white;
+            background-color: rgb(var(--color-primary));
+            box-shadow: var(--shadow-btn) !important;
+            gap: clamp(4px, 0.3vw, 6px) !important;
+            white-space: nowrap !important;
+            border-radius: clamp(8px, 1vw, 16px) !important;
+            justify-content: center !important;
+            border: 1px solid transparent !important;
+            font-size: var(--control-btn-font-size) !important;
+            transition: all var(--transition-normal) ease !important;
+            display: inline-flex !important;
+            /* 强制flex布局 */
+            vertical-align: middle !important;
+            /* 与容器基线对齐 */
+            margin: 0 !important;
+            /* 清除默认外边距 */
+        }
+
+        button.unified-btn:disabled {
+            background: #6b7280 !important;
+            color: #d1d5db !important;
+            box-shadow: none !important;
+            cursor: not-allowed !important;
+            border-color: #6b7280 !important;
+            border-radius: 12px;
+            opacity: 0.6 !important;
+        }
+
+        button.unified-btn:disabled:hover,
+        button.unified-btn[disabled]:hover {
+            cursor: not-allowed !important;
+            transform: none !important;
+            position: relative;
+        }
+
+        button.unified-btn:disabled:hover::after,
+        button.unified-btn[disabled]:hover::after {
+            content: "请先添加图片";
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #374151;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            white-space: nowrap;
+            z-index: 1000;
+            margin-bottom: 4px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        button.unified-btn:disabled:hover::before,
+        button.unified-btn[disabled]:hover::before {
+            content: "";
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 4px solid transparent;
+            border-top-color: #374151;
+            margin-bottom: 0;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        button.unified-btn:disabled:hover::after,
+        button.unified-btn[disabled]:hover::after,
+        button.unified-btn:disabled:hover::before,
+        button.unified-btn[disabled]:hover::before {
+            opacity: 1;
+        }
+
+        .unified-btn:hover:not(:disabled) {
+            background-color: rgb(var(--color-primary-dark));
+            box-shadow: var(--shadow-btn-hover) !important;
+            transform: translateY(-1px);
+        }
+
+        .unified-btn:active:not(:disabled) {
+            background-color: rgb(var(--color-primary-dark));
+            box-shadow: 0 2px 5px rgba(var(--color-primary), 0.2);
+            transform: translateY(0);
+        }
+
+        /* 下拉菜单样式 */
+
+        #actionDropdown {
+            position: absolute;
+            z-index: 1000 !important;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+            opacity: 0;
+            transform: translateY(-5px);
+            pointer-events: none;
+        }
+
+        #actionDropdown:not(.hidden) {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        #actionDropdown button {
+            border: none;
+            background: none;
+            cursor: pointer;
+            color: inherit;
+            /* 继承父容器颜色 */
+        }
+
+        #actionDropdown button:hover {
+            background-color: rgb(var(--color-secondary));
+        }
+
+        #actionDropdown button {
+            padding: calc(0.5rem + 2px) calc(1rem + 2px) !important;
+        }
+
+
+
+        /* 布局/清晰度选择器按钮 */
+        .ratio-quality-btn {
+            padding: clamp(2px, 0.3vw, 4px) clamp(6px, 0.6vw, 8px) !important;
+            border: 1px solid rgb(var(--color-secondary));
+            border-left: none;
+            border-radius: 0;
+            min-height: clamp(26px, 2.5vw, 34px) !important;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-width: 1px !important;
+            font-size: var(--btn-font-size) !important;
+            box-shadow: var(--shadow-btn) !important;
+            line-height: 1 !important;
+            transition: all var(--transition-normal) ease !important;
+        }
+
+        .ratio-quality-btn:first-of-type {
+            border-top-left-radius: 9999px;
+            border-bottom-left-radius: 9999px;
+        }
+
+        .ratio-quality-btn:last-of-type {
+            border-top-right-radius: 9999px;
+            border-bottom-right-radius: 9999px;
+        }
+
+        .ratio-quality-btn.active {
+            background-image: linear-gradient(to top, rgb(var(--color-primary-dark)) 0%, rgb(var(--color-primary)) 100%);
+            padding: clamp(2px, 0.3vw, 4px) clamp(6px, 0.6vw, 8px) !important;
+            border-color: rgb(var(--color-primary)) !important;
+            color: white;
+            box-shadow: var(--shadow-btn-hover) !important;
+            z-index: 1;
+            margin: 0;
+        }
+
+        .ratio-quality-btn.active:first-of-type {
+            border-top-left-radius: 9999px;
+            border-bottom-left-radius: 9999px;
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
+        }
+
+        .ratio-quality-btn.active:last-of-type {
+            border-top-right-radius: 9999px;
+            border-bottom-right-radius: 9999px;
+            border-top-left-radius: 0;
+            border-bottom-left-radius: 0;
+        }
+
+        .ratio-quality-btn.active:not(:first-of-type):not(:last-of-type) {
+            border-radius: 0;
+        }
+
+        .ratio-quality-btn.active:only-child {
+            border-radius: 9999px;
+        }
+
+        .ratio-quality-btn.active~.ratio-quality-btn:not(.active) {
+            border-left: 2px solid rgb(var(--color-secondary));
+        }
+
+        .route-input-base {
+            width: clamp(70px, 6vw, 120px) !important;
+            max-width: clamp(70px, 6vw, 120px) !important;
+            height: clamp(28px, 3vw, 36px) !important;
+            padding: 0 clamp(8px, 0.8vw, 10px) !important;
+            border: 1px solid rgb(var(--color-primary)) !important;
+            border-radius: clamp(6px, 0.6vw, 10px) !important;
+            text-align: center;
+            box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+            line-height: clamp(28px, 3vw, 36px) !important;
+            box-sizing: border-box;
+            outline: none;
+            border-width: 1px !important;
+            font-size: clamp(12px, 0.9vw, 16px) !important;
+            transition: all var(--transition-normal) ease !important;
+        }
+
+        .route-input-base:focus {
+            border-color: rgb(var(--color-primary));
+            box-shadow: 0 0 0 3px rgba(var(--color-primary), 0.3), inset 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+
+        .route-input-base::-webkit-input-placeholder,
+        .route-input-base:-ms-input-placeholder,
+        .route-input-base::placeholder {
+            text-align: center;
+            color: #9ca3af;
+            line-height: inherit;
+            vertical-align: middle;
+        }
+
+        /* 模态框控制按钮 */
+        #closeModal,
+        #prevImageBtn,
+        #nextImageBtn {
+            padding: calc(clamp(4px, 0.4vw, 6px) + 2px) calc(clamp(8px, 0.8vw, 10px) + 2px) !important;
+        }
+
+        /* 动画与错误样式 */
+        .animate-pulse-primary {
+            animation: pulse-primary 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulse-primary {
+
+            0%,
+            100% {
+                box-shadow: 0 0 0 0 rgba(var(--color-primary), 0.7);
+            }
+
+            50% {
+                box-shadow: 0 0 0 8px rgba(var(--color-primary), 0);
+            }
+        }
+
+        .border-error {
+            border-color: rgb(var(--color-primary));
+        }
+
+
+
+        /* 下载按钮样式 */
+        .download-temp-style {
+            box-shadow: none !important;
+            border: none !important;
+            overflow: hidden !important;
+        }
+
+        footer {
+            height: clamp(50px, 8vw, 70px) !important;
+            padding: clamp(3px, 0.5vw, 8px) !important;
+        }
+
+        /* 主题栏父容器：清除所有边距限制，全屏显示 */
+        .w-full.sticky.top-0.z-10 {
+            display: block !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        /* 主题栏内部容器：保持左右分散对齐 */
+        header .w-full.flex.justify-between.items-center.flex-wrap.gap-2 {
+            gap: clamp(1rem, 2vw, 2rem) !important;
+            align-items: center !important;
+            padding: 0 !important;
+            flex-wrap: nowrap !important;
+            /* 禁止换行 */
+            min-width: 0 !important;
+            /* 允许内容收缩 */
+        }
+
+        header .flex.items-center.space-x-2:last-child {
+            align-items: center !important;
+            /* 强制垂直居中 */
+            gap: clamp(1rem, 2vw, 2rem) !important;
+            margin: auto !important;
+            width: auto !important;
+            max-width: 100% !important;
+            padding: 0 !important;
+            /* 清除容器内边距 */
+        }
+
+        /* 强制按钮组靠右 */
+        header .flex.items-center.space-x-2 {
+            margin: auto !important;
+            width: auto !important;
+            max-width: 100% !important;
+        }
+
+        /* 标题区域强制靠左 */
+        header .flex.items-end.flex-wrap {
+            justify-content: flex-start !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            width: auto !important;
+            flex: 1 1 auto !important;
+            /* 允许标题区域收缩 */
+        }
+
+
+        /* 合并容器宽度限制 */
+        .w-full.sticky.top-0.z-10,
+        main>div:last-child,
+        .text-center.bg-white.rounded-xl.shadow-apple.italic.w-full {
+            width: 100% !important;
+            max-width: 100% !important;
+        }
+
+
+/* 2. 父容器：明确Flex垂直排列，确保高度传递 */
+#imageContainerParent {
+    padding: clamp(8px, 1vw, 16px) !important;
+    display: flex !important;
+    flex-direction: column !important; /* 关键添加：子元素垂直排列 */
+    align-items: center !important; /* 水平居中 */
+    justify-content: flex-start !important; /* 从顶部开始布局 */
+    box-sizing: border-box !important;
+    background-color: #ffffff !important;
+    position: relative !important;
+    margin: clamp(0.25rem, 1vw, 0.5rem);
+    height: auto !important;
+    min-height: clamp(240px, 40vw, 420px) !important;
+    overflow: visible !important;
 }
-                
-                _placeImagesInRectangle(positions) { 
-                    positions.forEach((pos, i) => this._placeSingleImage(i, pos));
+
+.image-container-empty {
+            min-height: 0 !important;
+            height: auto !important;
+        }
+
+        /* ======== 一键美化合集 ======== */
+        /* 1. 玻璃拟态头部 */
+        header {
+            background-color: rgba(255,255,255,0.55);
+            backdrop-filter: blur(12px) saturate(180%);
+            -webkit-backdrop-filter: blur(12px) saturate(180%);
+            border-bottom: 1px solid rgba(255,255,255,0.35);
+        }
+
+        /* 2. 按钮3D微动效 */
+        .unified-btn {
+            transform: translateY(0);
+            box-shadow:
+                0 2px 4px rgba(var(--color-primary),0.25),
+                0 1px 2px rgba(0,0,0,0.08);
+            transition: all var(--transition-normal) ease !important;
+        }
+        /* unified hover/active handled above; remove duplicate micro-effect */
+
+        /* 3. 拖拽区域炫光呼吸 */
+        #rectContainer:not(:has(.rect-item)) {
+            border: 2px solid transparent;
+            background:
+                linear-gradient(#fff,#fff) padding-box,
+                linear-gradient(45deg,rgb(var(--color-primary)),#93c5fd) border-box;
+            animation: border-breath 2.5s ease-in-out infinite;
+        }
+        @keyframes border-breath {
+            0%,100% { opacity: 0.45; }
+            50% { opacity: 1; }
+        }
+
+        /* 4. 拼图块悬停放大 */
+        .rect-item {
+            transition: transform 0.25s cubic-bezier(.4,0,.2,1),
+                        box-shadow 0.25s cubic-bezier(.4,0,.2,1);
+        }
+        .rect-item:hover {
+            transform: scale(1.03);
+            box-shadow: 0 8px 24px rgba(0,0,0,.12);
+            z-index: 10;
+        }
+
+        /* 5. Toast卡片圆角+进度条渐变 */
+        #successToast, #errorToast {
+            border-radius: 1rem;
+            box-shadow: 0 8px 30px rgba(0,0,0,.12);
+        }
+        #successToast .bg-primary { /* 成功进度条 */
+            background: linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%);
+            height: 4px;
+            border-radius: 2px;
+        }
+        #errorToast .bg-rose-600 { /* 失败进度条 */
+            background: linear-gradient(90deg, #e11d48 0%, #be123c 100%);
+            height: 4px;
+            border-radius: 2px;
+        }
+
+        /* 7. 空状态图标浮动 */
+        #emptyState svg {
+            animation: float 3s ease-in-out infinite;
+        }
+        @keyframes float {
+            0%,100% { transform: translateY(0); }
+            50% { transform: translateY(-6px); }
+        }
+
+        /* 8. 按钮彩虹光扫过 */
+        .unified-btn {
+            position: relative;
+            overflow: hidden;
+        }
+        .unified-btn::after {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%;
+            width: 100%; height: 100%;
+            background: linear-gradient(90deg,
+                transparent, rgba(255,255,255,.6), transparent);
+            transform: skewX(-20deg);
+            transition: left .6s;
+        }
+        .unified-btn:hover::after { left: 100%; }
+        /* ======== 按钮二次美化 ======== */
+        /* 1. 工具栏/操作按钮：低调微渐变 + 统一圆角 */
+        /* conflict removed: unified-btn gradient block */
+        /* remove gradient hover/active block to unify animations */
+
+        /* 2. 主行动按钮（添加图片、下载）高亮 accent */
+        #fileInputTopBtn:not(.disabled):not(:disabled),
+        #downloadBtn:not(:disabled) {
+            background: linear-gradient(145deg, #38b2ac 0%, #319795 100%);
+            border-color: #2c7a7b;
+            color: #fff;
+        }
+        #fileInputTopBtn:hover:not(:disabled),
+        #downloadBtn:hover:not(:disabled) {
+            background: linear-gradient(145deg, #319795 0%, #2c7a7b 100%);
+            border-color: #285e61;
+        }
+
+        /* ======== 按钮字号统一 ======== */
+        /* 1. 顶部工具栏按钮 */
+        .unified-btn {
+            font-size: var(--control-btn-font-size) !important;
+        }
+
+        /* ======== 容器对齐优化 ======== */
+        /* 统一容器间距 */
+        #statsBar, #imageContainerParent {
+            box-sizing: border-box !important;
+        }
+        
+        /* 响应式调整 */
+        @media (max-width: 640px) {
+            .px-3 {
+                padding-left: 0.75rem !important;
+                padding-right: 0.75rem !important;
+            }
+            #statsBar, #imageContainerParent {
+                padding: 0.75rem !important;
+            }
+            .layout-container {
+                padding-left: 0.75rem !important;
+                padding-right: 0.75rem !important;
+            }
+            
+            /* 小屏幕下清晰度和线路编号适配 */
+            .controls-bar .flex.items-center.gap-0 {
+                gap: 0 !important; /* 清晰度按钮无间距 */
+            }
+            
+            .ratio-quality-btn {
+                padding: 0.25rem 0.5rem !important; /* 减小按钮内边距 */
+                font-size: 0.75rem !important; /* 保持小字体 */
+                min-width: 2rem !important; /* 最小宽度 */
+                border-radius: 0 !important; /* 移除圆角 */
+                border-right-width: 0 !important; /* 移除右边框 */
+            }
+            
+            .ratio-quality-btn:last-of-type {
+                border-top-right-radius: 0.375rem !important;
+                border-bottom-right-radius: 0.375rem !important;
+                border-right-width: 1px !important; /* 恢复最后一个的右边框 */
+            }
+            
+            #routeNumberInput {
+                width: 6rem !important; /* 减小输入框宽度 */
+                padding: 0.25rem 0.5rem !important; /* 减小内边距 */
+                font-size: 0.75rem !important;
+            }
+            
+            .controls-container {
+                gap: 0.5rem !important; /* 减小元素间距 */
+            }
+            
+            /* 确保在小屏幕上所有元素都能放下 */
+            .controls-bar {
+                gap: 0.25rem !important;
+            }
+        }
+        
+        /* 中等小屏幕适配 */
+        @media (max-width: 480px) {
+            .ratio-quality-btn {
+                padding: 0.25rem 0.4rem !important;
+                font-size: 0.7rem !important;
+                border-radius: 0 !important; /* 移除圆角 */
+                border-right-width: 0 !important; /* 移除右边框 */
+            }
+            
+            .ratio-quality-btn:last-of-type {
+                border-top-right-radius: 0.375rem !important;
+                border-bottom-right-radius: 0.375rem !important;
+                border-right-width: 1px !important; /* 恢复最后一个的右边框 */
+            }
+            
+            #routeNumberInput {
+                width: 5.5rem !important;
+                font-size: 0.7rem !important;
+            }
+            
+            .controls-bar .flex.items-center.gap-0 span {
+                font-size: 0.8rem !important;
+            }
+        }
+        
+        /* 超小屏幕适配 */
+        @media (max-width: 390px) {
+            .ratio-quality-btn {
+                padding: 0.2rem 0.4rem !important;
+                font-size: 0.7rem !important;
+                min-width: 1.8rem !important;
+            }
+            
+            #routeNumberInput {
+                width: 5rem !important;
+                font-size: 0.7rem !important;
+            }
+            
+            .controls-bar > * {
+                flex-shrink: 0 !important; /* 防止元素被压缩 */
+            }
+            
+            .controls-container {
+                flex-wrap: wrap !important; /* 允许换行 */
+                gap: 0.25rem !important;
+            }
+            
+            /* 清晰度标签在小屏幕上隐藏 */
+            .controls-bar .flex.items-center.gap-0 span {
+                display: none !important;
+            }
+            
+            .ratio-quality-btn {
+                margin-right: 0.125rem !important;
+            }
+            
+            /* 随机重排和下载按钮调小，但保持工具栏高度统一 */
+            #regenerateBtn,
+            #downloadBtn {
+                padding: 0.375rem 0.75rem !important; /* 减小内边距 */
+                font-size: 0.75rem !important;
+                min-height: 2rem !important; /* 保持最小高度 */
+                line-height: 1.25 !important; /* 统一行高 */
+            }
+            
+            /* 确保所有按钮高度一致 */
+            .ratio-quality-btn,
+            #routeNumberInput,
+            #regenerateBtn,
+            #downloadBtn {
+                height: 2rem !important; /* 统一高度 */
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+            }
+            
+            #routeNumberInput {
+                line-height: 1.25 !important; /* 输入框行高统一 */
+            }
+        }
+
+        /* 精确对齐修复 */
+        #statsBar {
+            margin-bottom: 0.375rem !important; /* 6px，间距减半 */
+        }
+        
+        /* 确保所有容器边框一致 */
+        header.container-unified,
+        #statsBar,
+        #imageContainerParent {
+            border-width: 1px !important;
+            border-style: solid !important;
+        }
+        
+        /* 移除可能的额外间距 */
+        .space-y-1\.5 > * + * {
+            margin-top: 0.375rem !important; /* 6px，间距减半 */
+        }
+
+        /* 移除之前的冲突样式，使用新的布局容器方案 */
+        
+        /* 修复可能的box-sizing差异 */
+        * {
+            box-sizing: border-box !important;
+        }
+
+        /* 强制所有容器使用相同的box-shadow和圆角 */
+        header,
+        #statsBar,
+        #imageContainerParent {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+            border-radius: 0.75rem !important;
+        }
+        
+        /* 确保header的底部边框不会增加额外高度 */
+        header {
+            border-bottom-width: 1px !important;
+            border-bottom-style: solid !important;
+            border-bottom-color: #f3f4f6 !important;
+        }
+
+        /* 新的布局容器确保完美对齐 */
+        .layout-container {
+            padding-left: 12px !important;
+            padding-right: 12px !important;
+        }
+        
+        .layout-container > * {
+            width: 100% !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+        }
+        
+        /* 确保space-y-1.5的间距为6px */
+        .layout-container.space-y-1\.5 > :not([hidden]) ~ :not([hidden]) {
+            margin-top: 0.375rem !important;
+        }
+        
+        /* 确保sticky header在layout-container内正常工作 */
+        .layout-container > header {
+            position: sticky !important;
+            top: 0 !important;
+            z-index: 10 !important;
+            margin-bottom: 6px !important; /* 间距减半 */
+        }
+
+        /* 拖拽区域定位修复 */
+        #imageContainerParent {
+            position: relative !important;
+            min-height: 400px !important; /* 确保有足够高度 */
+        }
+
+        /* 工具栏高度统一 */
+        #statsBar {
+            min-height: 3rem !important; /* 统一工具栏最小高度 */
+        }
+        
+        .controls-bar {
+            align-items: center !important; /* 确保垂直居中对齐 */
+            min-height: 2.5rem !important; /* 控制栏最小高度 */
+        }
+        
+        /* 所有控制元素高度统一 */
+        .ratio-quality-btn,
+        #routeNumberInput,
+        .unified-btn {
+            height: 2rem !important; /* 统一高度 */
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            vertical-align: middle !important; /* 确保行内对齐 */
+        }
+        
+        #routeNumberInput {
+            line-height: normal !important; /* 重置行高 */
+            box-sizing: border-box !important; /* 确保高度计算一致 */
+        }
+
+        /* 清晰度按钮合并在一起 - 移除间距 */
+        .ratio-quality-btn {
+            border-radius: 0 !important; /* 移除圆角 */
+            margin: 0 !important; /* 移除外边距 */
+            border-right-width: 0 !important; /* 移除右边框 */
+        }
+        
+        /* 第一个按钮保持左侧圆角 */
+        .ratio-quality-btn:first-of-type {
+            border-top-left-radius: 0.375rem !important;
+            border-bottom-left-radius: 0.375rem !important;
+        }
+        
+        /* 最后一个按钮保持右侧圆角和右边框 */
+        .ratio-quality-btn:last-of-type {
+            border-top-right-radius: 0.375rem !important;
+            border-bottom-right-radius: 0.375rem !important;
+            border-right-width: 1px !important; /* 恢复右边框 */
+        }
+        
+        /* 选中状态边框修复 */
+        .ratio-quality-btn.active {
+            border-right-width: 1px !important; /* 选中时恢复右边框 */
+            position: relative !important; /* 用于层级调整 */
+            z-index: 1 !important; /* 提高层级 */
+        }
+        
+        /* 确保按钮之间没有间隙 */
+        .flex.items-center.gap-0 {
+            gap: 0 !important;
+        }
+        
+        #emptyState {
+            height: 100% !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            z-index: 5 !important;
+        }
+        
+        #loadingState {
+            position: absolute !important;
+            inset: 0 !important;
+            z-index: 10 !important; /* 高于emptyState */
+        }
+        
+        #rectContainer {
+            position: relative !important;
+            z-index: 1 !important; /* 基础层 */
+        }
+        /* 2. 单张预览弹窗按钮 */
+        #imageModal button {
+            font-size: var(--control-btn-font-size) !important;
+        }
+        /* ======== 按钮字号统一结束 ======== */
+        .unified-btn i { font-size: 1em !important; margin-right: 0 !important; color: inherit !important; }
+        .unified-btn i:only-child { margin-right: 0 !important; }
+
+.rect-container {
+    position: relative !important;
+    overflow: visible !important;
+    background-color: #ffffff !important;
+    cursor: default !important;
+    border: none !important;
+    margin: 0 auto !important;
+    display: block !important; /* 关键修改：inline-block改为block，避免高度塌陷 */
+    width: 100% !important;
+    min-width: clamp(200px, 30vw, 300px) !important;
+    transition: all 0.3s ease !important;
+    box-sizing: border-box !important;
+    box-shadow: var(--shadow-inner) !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    height: auto !important;
+    padding: 0 !important;
+    border: 1px solid #f0f0f0 !important;
+}
+
+/* 3. #rectContainer 保持与.rect-container一致，确保样式统一 */
+#rectContainer {
+    position: relative !important;
+    display: block !important;
+    width: 100% !important;
+    min-height: 0 !important;
+    box-sizing: border-box !important;
+    background-color: #ffffff !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+}
+
+
+        /* 清除模态框外层内边距，避免左右留白 */
+        #imageModal {
+            padding: 0 !important;
+            /* 覆盖原有的 p-4，消除外层边距 */
+            overflow-x: hidden !important;
+            /* 强制隐藏横向溢出 */
+        }
+
+        /* 模态框调整 */
+        #imageModal>div {
+            max-width: 100% !important;
+            width: 100% !important;
+            /* 强制占满屏幕宽度 */
+            max-height: 95vh !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            /* 强制清除主体内边距 */
+            box-sizing: border-box !important;
+        }
+
+        /* 图片预览容器和图片本身的终极对齐和尺寸规则 */
+        #imageModal>div>div:nth-child(2) {
+            width: 100% !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            display: flex !important;
+            justify-content: center !important;
+            /* Flex 居中 */
+            align-items: center !important;
+            text-align: center !important;
+            /* 文本居中，作为图片 (inline-block) 的 fallback 居中 */
+            flex-direction: column !important;
+            /* 垂直方向也居中 */
+        }
+
+
+        #modalImage {
+            width: 100% !important;
+            /* 确保图片宽度100% */
+            display: block !important;
+            /* 确保 margin: auto 生效 */
+            max-width: 100% !important;
+            height: auto !important;
+            object-fit: contain !important;
+            margin: 0 auto !important;
+            /* 块级元素经典居中法 */
+        }
+
+        #successToast {
+            transition: opacity 0.3s ease;
+        }
+
+        #successToast.hidden {
+            display: none !important;
+        }
+
+        #successToast.show {
+            display: flex !important;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        #errorToast {
+            transition: opacity 0.3s ease;
+        }
+
+        #errorToast.hidden {
+            display: none !important;
+        }
+
+        #errorToast.show {
+            display: flex !important;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translate(-50%, -20px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translate(-50%, 0);
+                opacity: 1;
+            }
+        }
+        #fileInputTopBtn, #downloadBtn, #deleteSingleBtn { margin-left: 0 !important; }
+        #topActions { gap: clamp(4px, 0.6vw, 8px) !important; }
+        #modalNav { display: grid !important; grid-template-columns: auto auto auto; align-items: center; column-gap: clamp(4px, 0.6vw, 8px); }
+        #modalNav > * { justify-self: center; }
+        #actionMenuBtn, #downloadSingleBtn, #deleteSingleBtn {
+            border: 1px solid rgb(var(--color-primary)) !important;
+        }
+        #actionDropdown { width: auto !important; min-width: 16rem !important; }
+        #actionDropdown button { font-size: var(--font-base) !important; white-space: nowrap !important; }
+        #actionDropdown i { font-size: 1em !important; }
+        #modalActions { gap: clamp(4px, 0.6vw, 8px) !important; }
+        #metricsActionsGroup { gap: clamp(4px, 0.6vw, 8px) !important; }
+        #modalFooter { display: grid !important; grid-template-columns: auto 1fr auto; align-items: center; column-gap: clamp(6px, 0.8vw, 12px) !important; }
+        #modalActions { justify-self: center !important; }
+        #modalNav { justify-self: end !important; }
+        @media (max-width: 640px) {
+            .unified-btn { min-height: 44px !important; padding: 10px 14px !important; border-radius: 14px !important; }
+            .unified-btn i { font-size: 1.2em !important; }
+            .unified-btn:has(span.hidden) i { font-size: 1.5em !important; }
+            .unified-btn i:only-child { font-size: 1.5em !important; }
+            #modalFooter .unified-btn { min-width: 44px !important; }
+        }
+        /* Ensure small-screen hides text and shows icons only */
+        .hidden { display: none !important; }
+        .sm\:inline { display: none !important; }
+        @media (min-width: 640px) {
+            .sm\:inline { display: inline !important; }
+        }
+        #regenerateBtn:not(:disabled), #downloadBtn:not(:disabled), #fileInputTopBtn:not(.disabled):not(:disabled), #clearBtn:not(:disabled), #downloadSingleBtn:not(:disabled), #deleteSingleBtn:not(:disabled) {
+            background: rgb(var(--color-primary)) !important;
+            color: #fff !important;
+            border-color: rgb(var(--color-primary)) !important;
+        }
+        #regenerateBtn:hover:not(:disabled), #downloadBtn:hover:not(:disabled), #fileInputTopBtn:hover:not(:disabled), #clearBtn:hover:not(:disabled), #downloadSingleBtn:hover:not(:disabled), #deleteSingleBtn:hover:not(:disabled) {
+            background: rgb(var(--color-primary-dark)) !important;
+        }
+        button#regenerateBtn:disabled, 
+        button#downloadBtn:disabled, 
+        button#clearBtn:disabled, 
+        button#fileInputTopBtn.disabled {
+            background: #6b7280 !important;
+            border-color: #6b7280 !important;
+            color: #d1d5db !important;
+            cursor: not-allowed !important;
+            opacity: 0.6 !important;
+            box-shadow: none !important;
+            transform: none !important;
+        }
+        
+        /* 更具体的选择器来覆盖其他样式 */
+        .unified-btn:disabled {
+            background-color: #6b7280 !important;
+            border-color: #6b7280 !important;
+            color: #d1d5db !important;
+            opacity: 0.6 !important;
+            cursor: not-allowed !important;
+            box-shadow: none !important;
+        }
+        
+        /* 使用属性选择器增加优先级 */
+        button.unified-btn[disabled] {
+            background-color: #6b7280 !important;
+            border-color: #6b7280 !important;
+            color: #d1d5db !important;
+            opacity: 0.6 !important;
+            cursor: not-allowed !important;
+            box-shadow: none !important;
+        }
+        
+        /* 额外的禁用类样式 */
+        .unified-btn.btn-disabled {
+            background-color: #6b7280 !important;
+            border-color: #6b7280 !important;
+            color: #d1d5db !important;
+            opacity: 0.6 !important;
+            cursor: not-allowed !important;
+            box-shadow: none !important;
+            transform: none !important;
+        }
+        #modalNav span { font-size: var(--control-btn-font-size) !important; }
+        #copyrightFooter { font-size: var(--font-lg) !important; }
+    </style>
+    <style media="not all">
+        .unified-btn:disabled, .unified-btn[disabled] {
+            background-color: #6b7280 !important;
+            color: #d1d5db !important;
+            border-color: #6b7280 !important;
+            box-shadow: none !important;
+            cursor: not-allowed !important;
+            opacity: 0.6 !important;
+            transform: none !important;
+        }
+        .unified-btn:disabled::after { display: none !important; }
+    </style>
+</head>
+
+<body class="min-h-screen flex flex-col">
+    <div class="layout-container px-3 space-y-1.5">
+        <header class="bg-white shadow-apple rounded-xl border-b border-gray-100 w-full">
+            <div class="px-3 pt-3 pb-3 w-full">
+                <div class="w-full flex justify-between items-center flex-wrap gap-2">
+                    <div class="flex items-end flex-wrap">
+                        <h1 class="text-xl sm:text-3xl font-black text-primary tracking-wide mr-3 m-0">
+                            <span class="hidden sm:inline">深高创新•学生义工拼图工具</span>
+                            <span class="sm:hidden">创新•义工拼图工具</span>
+                        </h1>
+                        <span class="text-sm sm:text-base text-gray-500 font-medium">v1.2.2.2511</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <div id="topActions" class="relative flex items-center">
+                            <div class="btn-container">
+                                <button id="clearBtn" class="unified-btn" disabled>
+                                    <i class="fa fa-trash"></i> <span class="hidden sm:inline">清空</span>
+                                </button>
+                                <div class="btn-disabled-overlay" style="display: none;"></div>
+                            </div>
+                            <input type="file" id="fileInputTop" multiple accept="image/jpeg,image/png,image/webp" class="hidden">
+                            <button id="fileInputTopBtn" class="unified-btn" onclick="document.getElementById('fileInputTop').click()">
+                                <i class="fa fa-upload"></i> <span class="hidden sm:inline">添加图片</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+        
+        <div id="statsBar" class="bg-white p-3 rounded-2xl shadow-apple w-full flex flex-col gap-1 border border-gray-100">
+            <div class="controls-bar flex flex-wrap justify-between items-center gap-x-1 sm:gap-x-2 gap-y-1">
+                <div class="controls-left flex items-center gap-1 sm:gap-2 flex-wrap sm:flex-nowrap">
+                    <div class="flex items-center gap-0">
+                        <span class="font-semibold text-gray-700 mr-1 text-xs sm:text-sm">清晰度</span>
+                        <input type="radio" name="renderQuality" id="quality-1x" value="1" class="hidden">
+                        <label for="quality-1x" class="ratio-quality-btn cursor-pointer text-xs" data-value="1"
+                            data-group="renderQuality">1x</label>
+                        <input type="radio" name="renderQuality" id="quality-2x" value="2" class="hidden" checked>
+                        <label for="quality-2x" class="ratio-quality-btn active cursor-pointer text-xs" data-value="2"
+                            data-group="renderQuality">2x</label>
+                        <input type="radio" name="renderQuality" id="quality-3x" value="3" class="hidden">
+                        <label for="quality-3x" class="ratio-quality-btn cursor-pointer text-xs" data-value="3"
+                            data-group="renderQuality">3x</label>
+                    </div>
+                    <input type="text" id="routeNumberInput" placeholder="线路编号" maxlength="60"
+                        class="route-input-base text-xs w-20 sm:w-auto" />
+                </div>
+                <div class="controls-right flex items-center gap-1 sm:gap-2 flex-shrink-0">
+                    <div class="btn-container">
+                        <button id="regenerateBtn" class="unified-btn text-xs" disabled>
+                            <i class="fa fa-sync-alt"></i> <span class="hidden sm:inline">随机重排</span>
+                        </button>
+                        <div class="btn-disabled-overlay" style="display: none;"></div>
+                    </div>
+                    <div class="btn-container">
+                        <button id="downloadBtn" class="unified-btn text-xs" disabled>
+                            <i class="fa fa-download"></i>
+                            <span class="hidden sm:inline">下载</span>
+                        </button>
+                        <div class="btn-disabled-overlay" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="imageContainerParent"
+            class="flex justify-center items-center bg-white p-3 rounded-2xl shadow-apple relative w-full border border-gray-100 min-h-[400px]">
+            <div id="downloadOverlay"
+                class="hidden absolute inset-0 bg-white/90 backdrop-blur-sm z-20 rounded-2xl flex-col justify-center items-center p-8 text-center space-y-4">
+                <p class="text-base sm:text-2xl font-semibold text-primary">正在使用生成大图...</p>
+                <p class="text-base sm:text-lg font-semibold text-gray-700">请耐心等待 5-15 秒。若失败，请切换清晰度!</p>
+                <div class="w-full max-w-sm bg-gray-200 rounded-full h-2.5">
+                    <div id="downloadProgressBar"
+                        class="bg-primary h-2.5 rounded-full transition-all duration-100 ease-linear"></div>
+                </div>
+                <p id="downloadProgressText" class="text-base text-gray-500">正在等待浏览器渲染...</p>
+            </div>
+
+            <div id="loadingState"
+                class="hidden absolute inset-0 bg-white/90 backdrop-blur-sm z-10 rounded-2xl flex flex-col justify-center items-center p-8 text-center space-y-4">
+                <p id="loadingText" class="text-base sm:text-lg font-semibold text-gray-700">准备中...</p>
+                <div class="w-full max-w-sm bg-gray-200 rounded-full h-2.5">
+                    <div id="loadingBar"
+                        class="bg-primary h-2.5 rounded-full transition-all duration-100 ease-linear" style="width:0%"></div>
+                </div>
+            </div>
+
+            <div id="rectContainer" class="w-full relative"></div>
+
+            <div id="emptyState" class="text-center py-8 px-6 space-y-6 flex flex-col items-center justify-center w-full h-full">
+                <svg class="mx-auto h-20 w-20 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none"
+                    viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-12 5h12a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v10a2 2 0 002 2z">
+                    </path>
+                </svg>
+                <p class="text-2xl sm:text-3xl font-black text-gray-800">拖拽图片到此处上传</p>
+                <p class="text-lg text-gray-500">支持JPEG/PNG/WEBP格式</p>
+            </div>
+
+        </div>
+    </div>
+    </main>
+
+    <div id="successToast"
+        class="fixed top-20 left-1/2 transform -translate-x-1/2 bg-primary text-white px-6 py-3 rounded-lg shadow-lg z-50 hidden flex items-center gap-3 cursor-pointer">
+        <i class="fa fa-check-circle text-xl"></i>
+        <div class="text-center min-w-[200px]">
+            <p id="toastMessage" class="font-bold font-lg mb-2"></p>
+            <p class="text-sm opacity-80">将在 <span id="countdown">10</span> 秒后关闭（点击关闭）</p>
+        </div>
+    </div>
+
+    <div id="errorToast"
+        class="fixed top-20 left-1/2 transform -translate-x-1/2 bg-rose-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 hidden flex items-center gap-3 cursor-pointer">
+        <i class="fa fa-exclamation-circle text-xl"></i>
+        <div class="text-center min-w-[200px]">
+            <p id="errorToastMessage" class="font-bold font-lg mb-2"></p>
+            <p class="text-sm opacity-80">将在 <span id="errorCountdown">10</span> 秒后关闭（点击关闭）</p>
+        </div>
+    </div>
+
+    
+    <div id="onboardingModal"
+        class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="bg-white rounded-xl p-6 max-w-md w-90% shadow-2xl">
+            <h3 class="text-xl font-bold text-primary mb-4">欢迎使用义工拼图工具</h3>
+            <ul class="text-gray-700 space-y-3 mb-6 text-left">
+                <li class="flex items-start">
+                    <span>① 线路编号会作为水印显示在拼图中央</span>
+                </li>
+                <li class="flex items-start">
+                    <span>② 支持拖拽图片或点击"添加图片"按钮上传</span>
+                </li>
+                <li class="flex items-start">
+                    <span>③ 填写线路编号后才可下载拼图</span>
+                </li>
+            </ul>
+            <button id="closeOnboarding" class="unified-btn text-xs">开始使用</button>
+        </div>
+    </div>
+
+    <footer class="p-3 text-center text-sm text-gray-500">
+        <p id="copyrightFooter"></p>
+    </footer>
+
+    <div id="imageModal"
+        class="fixed inset-0 bg-black bg-opacity-80 backdrop-blur-md hidden flex items-center justify-center z-50 p-4"
+        aria-modal="true" role="dialog">
+        <div class="relative bg-white rounded-2xl w-full max-w-screen-xl max-h-[90vh] flex flex-col shadow-apple">
+            <div class="p-4 border-b flex justify-between items-center bg-gray-50/50 rounded-t-2xl">
+                <h3 id="imageName" class="font-bold truncate" style="font-size: clamp(1rem, 2vw, 1.5rem);">图片名</h3>
+                <button id="closeModal" class="unified-btn text-xs rounded-full"
+                    title="关闭预览"><i class="fa fa-times"></i></button>
+            </div>
+            <div class="relative flex-grow overflow-hidden flex items-center justify-center p-0 sm:p-4">
+                <img id="modalImage" src="" alt="Preview" class="object-contain max-h-full max-w-full">
+            </div>
+            <div id="modalFooter"
+                class="p-4 border-t flex justify-between items-center flex-wrap space-y-2 sm:space-y-0 text-sm sm:text-base bg-gray-50/50 rounded-b-2xl">
+                <div id="metricsActionsGroup" class="flex items-center text-gray-600">
+                    <p>尺寸: <span id="modalImgSize" class="font-semibold"></span></p>
+                    <p>比例: <span id="modalImgRatio" class="font-semibold"></span></p>
+                </div>
+                <div id="modalActions" class="flex items-center">
+                    <button id="downloadSingleBtn" class="unified-btn">
+                        <i class="fa fa-download"></i> <span class="hidden sm:inline">单张下载</span>
+                    </button>
+                    <button id="deleteSingleBtn" class="unified-btn">
+                        <i class="fa fa-trash"></i> <span class="hidden sm:inline">删除</span>
+                    </button>
+                </div>
+                <div id="modalNav" class="ml-auto sm:ml-0 mt-2 sm:mt-0">
+                    <button id="prevImageBtn" class="unified-btn rounded-full disabled:opacity-50 transition" title="查看上一张图片">
+                        <i class="fa fa-arrow-left"></i>
+                    </button>
+                    <span class="font-bold text-gray-700"><span id="currentImageIndex">1</span> / <span id="totalImageCount">1</span></span>
+                    <button id="nextImageBtn" class="unified-btn rounded-full disabled:opacity-50 transition" title="查看下一张图片">
+                        <i class="fa fa-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script type="text/plain">
+        function getScale() {
+            const radio = document.querySelector('input[name="renderQuality"]:checked');
+            return radio ? parseInt(radio.value) : 2;
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+
+            function debounce(func, delay) {
+                let timeout;
+                return function (...args) {
+                    const context = this;
+                    clearTimeout(timeout);
+                    timeout = setTimeout(() => func.apply(context, args), delay);
+                };
+            }
+
+            function loadScript(url) {
+                return new Promise((resolve, reject) => {
+                    const s = document.createElement('script');
+                    s.src = url;
+                    s.onload = resolve;
+                    s.onerror = reject;
+                    document.head.appendChild(s);
+                });
+            }
+
+            function adjustContainerRatio(ratio) {
+                const container = document.getElementById('rectContainer');
+                const parent = document.getElementById('imageContainerParent');
+                if (!container) return;
+
+                container.style.width = '100%';
+                container.style.height = 'auto';
+
+                // 【修改代码】只在空状态时设置padding-top（有图片时不生效）
+                const imageItems = document.querySelectorAll('.rect-item');
+                        if (imageItems.length === 0) { // 只有空容器时才加padding-top
+                            switch (ratio) {
+                        case '16:9':
+                            container.style.paddingTop = '56.25%';
+                            break;
+                        case '3:4':
+                            container.style.paddingTop = '133.333%';
+                            break;
+                        case '4:3':
+                            container.style.paddingTop = '75%';
+                            break;
+                            }
+                    container.style.minHeight = '';
+                    container.style.height = '';
+                    if (parent) parent.classList.add('image-container-empty');
+                } else {
+                    container.style.paddingTop = '0';
+                    if (parent) parent.classList.remove('image-container-empty');
+                }
+            }
+
+
+            class GalleryOptimizer {
+
+                CONFIG = {
+                    GAP: 1,
+                    IDEAL_ROW_HEIGHT: 250,
+                    BINARY_SEARCH_ITERATIONS: 15,
+                    JPEG_QUALITY: 1.0,
+                };
+
+                constructor() {
+                    this.THEMES = [
+                        { name: 'Violet', primary: '124, 58, 237', dark: '109, 40, 217' },
+                        { name: 'Blue', primary: '59, 130, 246', dark: '37, 99, 235' },
+                        { name: 'Pink', primary: '236, 72, 153', dark: '219, 39, 119' },
+                        { name: 'Green', primary: '34, 197, 94', dark: '22, 163, 74' },
+                        { name: 'Orange', primary: '249, 115, 22', dark: '234, 88, 12' },
+                        { name: 'Sky', primary: '14, 165, 233', dark: '2, 132, 199' },
+                        { name: 'Rose', primary: '244, 63, 94', dark: '225, 29, 72' },
+                        { name: 'Teal', primary: '20, 184, 166', dark: '15, 118, 110' },
+                        { name: 'Amber', primary: '245, 158, 11', dark: '217, 119, 6' },
+                        { name: 'Indigo', primary: '99, 102, 241', dark: '79, 70, 229' }
+                    ];
+                    this.currentThemeIndex = 0;
+
+                    this._loadTheme();
+                    this.dom = this._getDomReferences();
+                    this.state = this._getInitialState();
+
+                    if (!this.dom.domWatermark) {
+                        const wm = document.createElement('div');
+                        wm.id = 'domWatermark';
+                        wm.classList.add('hidden');
+                        this.dom.domWatermark = wm;
+                        if (this.dom.rectContainer) this.dom.rectContainer.appendChild(wm);
+                    }
+
+                    this._initEventListeners();
+                    this._setupDragAndDrop();
+                    this.updateRatioButtonState(this.state.renderQuality.toString(), 'renderQuality');
+                    this.updateUIState();
+                    if (this.state.imageItems.length === 0) {
+                        this.dom.emptyState.classList.remove('hidden');
+                    } else {
+                        this.dom.emptyState.classList.add('hidden');
+                    }
+
+                    const hasVisited = localStorage.getItem('hasVisitedPuzzleTool');
+                    const onboardingModal = document.getElementById('onboardingModal');
+                    const closeOnboarding = document.getElementById('closeOnboarding');
+
+                    if (!hasVisited && onboardingModal && closeOnboarding) {
+                        setTimeout(() => {
+                            onboardingModal.classList.add('opacity-100', 'pointer-events-auto');
+                        }, 500);
+
+                        closeOnboarding.addEventListener('click', () => {
+                            onboardingModal.classList.remove('opacity-100', 'pointer-events-auto');
+                            localStorage.setItem('hasVisitedPuzzleTool', 'true');
+                        });
+                    }
                 }
 
-_placeSingleImage(index, position) {
-    const imageItem = this.state.imageItems[index];
-    if (!imageItem || !position) return;
+                _getDomReferences() {
+                    const ids = [
+                        'rectContainer', 'fileInputTop', 'fileInputTopBtn',
+                        'emptyState', 'loadingState', 'loadingText', 'loadingBar', 'downloadBtn',
+                        'clearBtn', 'imageModal', 'modalImage', 'closeModal', 'prevImageBtn',
+                        'nextImageBtn', 'currentImageIndex', 'totalImageCount',
+                        'statsBar', 'rectDimensions', 'regenerateBtn', 'imageName',
+                        'downloadSingleBtn', 'deleteSingleBtn', 'modalImgSize',
+                        'modalImgRatio', 'routeNumberInput', 'downloadOverlay',
+                        'downloadProgressBar', 'downloadProgressText', 'imageCount',
+                        'imageContainerParent',
+                        'domWatermark'
+                    ];
+                    const dom = {};
+                    ids.forEach(id => dom[id] = document.getElementById(id));
+                    
+                    dom.renderQualityRadios = document.querySelectorAll('input[name="renderQuality"]');
+                    dom.ratioButtons = document.querySelectorAll('.ratio-quality-btn');
+                    return dom;
+                }
 
-    const item = document.createElement('div');
-    item.className = 'rect-item rounded-sm fade-in';
-    item.style.cssText = `left: ${position.x}px; top: ${position.y}px; width: ${position.width}px; height: ${position.height}px;`;
+                _getInitialState() {
+                    const defaultRatio = '4:3';
 
-    const img = new Image();
-    img.src = imageItem.src;
-    img.alt = imageItem.name;
-    item.appendChild(img);
+                    // 默认值：2x
+                    let defaultQuality = 2;
+                    const checkedQuality = document.querySelector('input[name="renderQuality"]:checked');
+                    if (checkedQuality) defaultQuality = parseInt(checkedQuality.value);
+
+                    return {
+                        imageItems: [],
+                        currentPreviewIndex: 0,
+                        isDownloading: false,
+                        rectWidth: 0,
+                        layoutPositions: [],
+                        totalHeight: 0,
+                        aspectRatio: defaultRatio,
+                        renderQuality: defaultQuality,
+                    };
+                }
+
+                _initEventListeners() {
+                    this.dom.fileInputTop.addEventListener('change', async (e) => {
+                        try {
+                            await this.handleFileUpload(e.target.files);
+                        } catch (error) {
+                            console.error("处理图片时出错:", error);
+                        } finally {
+                            e.target.value = null;
+                        }
+                    });
+                    this.dom.downloadBtn.addEventListener('click', this.downloadRectangle.bind(this));
+                    this.dom.clearBtn.addEventListener('click', this.clearAllImages.bind(this));
+                    this.dom.regenerateBtn.addEventListener('click', this.regenerateLayout.bind(this));
+                    this.dom.closeModal.addEventListener('click', this.closeModal.bind(this));
+                    this.dom.prevImageBtn.addEventListener('click', () => this.switchPreviewImage(-1));
+                    this.dom.nextImageBtn.addEventListener('click', () => this.switchPreviewImage(1));
+                    this.dom.imageModal.addEventListener('click', (e) => { if (e.target === this.dom.imageModal) this.closeModal(); });
+                    this.dom.downloadSingleBtn.addEventListener('click', () => this.downloadSingleImage());
+                    this.dom.deleteSingleBtn.addEventListener('click', () => this.deleteCurrentImage());
+
+                    document.addEventListener('keydown', (e) => {
+                        if (this.dom.imageModal.classList.contains('hidden')) return;
+                        if (e.key === 'Escape') this.closeModal();
+                        if (e.key === 'ArrowLeft') this.switchPreviewImage(-1);
+                        if (e.key === 'ArrowRight') this.switchPreviewImage(1);
+                    });
+
+                    this.dom.routeNumberInput.addEventListener('input', () => this.handleRouteInputChange());
 
 
-    // 6. 绑定打开模态框事件
-    item.addEventListener('click', () => this.openModal(index));
+                    
 
-    this.dom.rectContainer.appendChild(item);
-}
+                    document.addEventListener('click', this._handleDocumentClick.bind(this));
+                    document.addEventListener('keydown', this._handleDocumentKeydown.bind(this));
 
-                
-                openModal(index) { this.state.currentPreviewIndex = index; this.dom.imageModal.classList.remove('hidden'); document.body.style.overflow = 'hidden'; this.updateModalContent(); }
-                closeModal() { this.dom.imageModal.classList.add('hidden'); document.body.style.overflow = ''; }
-                switchPreviewImage(direction) { const newIndex = this.state.currentPreviewIndex + direction; if (newIndex >= 0 && newIndex < this.state.imageItems.length) { this.state.currentPreviewIndex = newIndex; this.updateModalContent(); } }
-                
+                    
+
+                    this.dom.renderQualityRadios.forEach(radio => {
+                        radio.addEventListener('change', (e) => {
+                            this.state.renderQuality = parseInt(e.target.value);
+                            this.updateRatioButtonState(e.target.value, 'renderQuality');
+                        });
+                    });
+
+                    window.addEventListener('resize', debounce(this.calculateAndRenderRectangle.bind(this), 150));
+
+                    if (this.state.imageItems.length === 0) {
+                        this.dom.imageContainerParent.classList.remove('hidden');
+                        this.dom.emptyState.classList.remove('hidden');
+                    }
+                }
+
+                handleRouteInputChange() {
+                    this.updateUIState();
+                    this._updateWatermarkVisibility();
+                }
+
+
+                _updateWatermarkVisibility() {
+                    const watermarkText = this.dom.routeNumberInput.value.trim();
+                    const domWatermark = this.dom.domWatermark;
+                    const rectContainer = this.dom.rectContainer;
+
+                    if (!rectContainer) return;
+
+                    // 隐藏无水印文本的情况
+                    if (watermarkText === '') {
+                        domWatermark.classList.add('hidden');
+                        return;
+                    }
+
+                    // --- 1. 计算所有图片的实际占据区域 ---
+                    const rectItems = document.querySelectorAll('.rect-item');
+                    if (rectItems.length === 0) {
+                        domWatermark.classList.add('hidden');
+                        return;
+                    }
+
+                    // 初始化边界值（取第一张图片的位置）
+                    let minX = Infinity, maxX = -Infinity;
+                    let minY = Infinity, maxY = -Infinity;
+
+                    // 遍历所有图片，找到最边缘的位置
+                    rectItems.forEach(item => {
+                        const rect = item.getBoundingClientRect();
+                        const containerRect = rectContainer.getBoundingClientRect();
+
+                        // 计算图片相对于容器的坐标
+                        const x = rect.left - containerRect.left;
+                        const y = rect.top - containerRect.top;
+                        const right = x + rect.width;
+                        const bottom = y + rect.height;
+
+                        // 更新边界
+                        minX = Math.min(minX, x);
+                        maxX = Math.max(maxX, right);
+                        minY = Math.min(minY, y);
+                        maxY = Math.max(maxY, bottom);
+                    });
+
+                    // 计算图片区域的中心点
+                    const centerX = (minX + maxX) / 2;
+                    const centerY = (minY + maxY) / 2;
+
+                    // 计算图片区域的宽高（用于调整水印大小）
+                    const contentWidth = maxX - minX;
+                    const contentHeight = maxY - minY;
+
+                    // --- 2. 设置水印位置（基于图片区域中心） ---
+                    domWatermark.style.left = `${centerX}px`;
+                    domWatermark.style.top = `${centerY}px`;
+                    domWatermark.style.transform = 'translate(-50%, -50%) rotate(-15deg)'; // 中心点对齐
+
+                    // --- 3. 调整水印大小（适配图片区域） ---
+                    const maxWatermarkWidth = contentWidth * 0.9; // 最大宽度为图片区域的90%
+                    const maxWatermarkHeight = contentHeight * 0.8; // 最大高度为图片区域的80%
+                    const textLength = watermarkText.length;
+
+                    // 根据文本长度和图片区域宽度计算字体大小
+                    let fontSize = Math.floor(maxWatermarkWidth / (Math.max(textLength * 0.4, 3))); // 更大字号
+                    fontSize = Math.min(fontSize, maxWatermarkHeight);
+                    fontSize = Math.max(fontSize, 16);
+
+                    domWatermark.style.setProperty('font-size', `${fontSize}px`, 'important');
+                    domWatermark.style.maxWidth = `${maxWatermarkWidth}px`;
+                    domWatermark.textContent = watermarkText;
+
+                    // 调整描边粗细
+                    const strokeWidth = Math.max(fontSize / 40, 0.8);
+                    domWatermark.style.textStroke = `${strokeWidth}px rgba(255, 255, 255, 0.85)`;
+                    domWatermark.style.webkitTextStroke = `${strokeWidth}px rgba(255, 255, 255, 0.85)`;
+
+                    // 显示水印
+                    domWatermark.classList.remove('hidden');
+                }
+
+
+                _handleDocumentClick() {
+                    if (this.dom.actionDropdown && !this.dom.actionDropdown.classList.contains('hidden')) {
+                        this.dom.actionDropdown.classList.add('hidden');
+                    }
+                }
+
+                _handleDocumentKeydown(e) {
+                    if (this.dom.actionDropdown && e.key === 'Escape' && !this.dom.actionDropdown.classList.contains('hidden')) {
+                        this.dom.actionDropdown.classList.add('hidden');
+                    }
+                }
+
+                _applyTheme(theme) {
+                    // 修正：root 应为 document.documentElement（或提前定义 this.root）
+                    document.documentElement.style.setProperty('--color-primary', theme.primary);
+                    document.documentElement.style.setProperty('--color-primary-dark', theme.dark);
+                }
+
+                _switchTheme() {
+                    this.currentThemeIndex = (this.currentThemeIndex + 1) % this.THEMES.length;
+                    const nextTheme = this.THEMES[this.currentThemeIndex];
+                    this._applyTheme(nextTheme);
+
+                    if (this.dom.actionDropdown) {
+                        this.dom.actionDropdown.classList.add('hidden');
+                    }
+                    const emptyState = document.getElementById('emptyState');
+                    if (emptyState && !emptyState.classList.contains('hidden')) {
+                        emptyState.classList.add('hidden');
+                        setTimeout(() => {
+                            emptyState.classList.remove('hidden');
+                        }, 50);
+                    }
+                }
+
+                _loadTheme() {
+
+                    const randomIndex = Math.floor(Math.random() * this.THEMES.length);
+                    this.currentThemeIndex = randomIndex;
+                    const theme = this.THEMES[this.currentThemeIndex];
+                    this._applyTheme(theme);
+                }
+
+
+
+
+
+
+
+
+                updateRatioButtonState(activeValue, groupName) {
+                    this.dom.ratioButtons.forEach(btn => {
+                        if (btn.getAttribute('data-group') === groupName) {
+                            if (btn.getAttribute('data-value') === String(activeValue)) {
+                                btn.classList.add('active');
+                            } else {
+                                btn.classList.remove('active');
+                            }
+                        }
+                    });
+                }
+
+                _setupDragAndDrop() {
+                    const dropArea = document.body;
+                    const preventDefaults = (e) => { e.preventDefault(); e.stopPropagation(); };
+                    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => dropArea.addEventListener(eventName, preventDefaults, false));
+                    dropArea.addEventListener('drop', (e) => { this.handleFileUpload(e.dataTransfer.files); }, false);
+                }
+
+                async _readFileAsDataURL(file) {
+                    return new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => resolve(e.target.result);
+                        reader.onerror = (e) => reject(new Error('Failed to read file as DataURL.'));
+                        reader.readAsDataURL(file);
+                    });
+                }
+
+                async _loadImageData(file) {
+                    try {
+                        const dataURL = await this._readFileAsDataURL(file);
+
+                        const image = await new Promise((resolve, reject) => {
+                            const img = new Image();
+                            img.crossOrigin = 'anonymous';
+                            img.onload = () => resolve(img);
+                            img.onerror = () => reject(new Error('Image load failed from DataURL.'));
+                            img.src = dataURL;
+                        });
+
+                        const { width, height } = image;
+
+                        if (width <= 0 || height <= 0 || !isFinite(width) || !isFinite(height)) {
+                            console.error('Image has invalid dimensions:', file.name, width, 'x', height);
+                            throw new Error('Invalid dimensions (0 or NaN)');
+                        }
+
+                        return {
+                            id: `${Date.now()}-${Math.random()}`,
+                            src: dataURL,
+                            width,
+                            height,
+                            ratio: width / height,
+                            name: file.name,
+                            file: file
+                        };
+                    } catch (error) {
+                        console.error('Failed to load image metadata:', file.name, error);
+                        return null;
+                    }
+                }
+
+                async handleFileUpload(files) {
+                    if (!files || files.length === 0) return;
+
+                    // 严格过滤支持的图片格式（JPG/PNG/WEBP）
+                    const imageFiles = Array.from(files).filter(file =>
+                        ['image/jpeg', 'image/png', 'image/webp'].includes(file.type)
+                    );
+                    if (imageFiles.length === 0) {
+                        alert('未检测到有效图片文件（仅支持 JPG/PNG/WEBP 格式）');
+                        return;
+                    }
+
+                    // 显示加载状态
+                    this.dom.imageContainerParent.classList.remove('hidden');
+                    this.dom.emptyState.classList.add('hidden');
+                    this.dom.loadingState.classList.remove('hidden');
+
+                    const totalFiles = imageFiles.length;
+                    const failedFiles = []; // 记录失败的文件名及原因
+                    const newImages = [];
+
+                    // 进度更新函数：显示当前处理的文件名
+                    const updateProgress = (loaded, currentFileName, status = '处理中') => {
+                        this.dom.loadingText.textContent = `[${status}] 第 ${loaded}/${totalFiles} 张：${currentFileName}`;
+                        this.dom.loadingBar.style.width = `${(loaded / totalFiles) * 100}%`;
+                    };
+
+                    // 初始进度提示
+                    updateProgress(0, imageFiles[0].name, '准备中');
+
+                    // 逐个处理文件（串行处理，避免内存占用过高）
+                    for (let i = 0; i < totalFiles; i++) {
+                        const file = imageFiles[i];
+                        try {
+                            updateProgress(i + 1, file.name);
+                            const result = await this._loadImageData(file);
+                            if (result) {
+                                newImages.push(result);
+                            } else {
+                                failedFiles.push(`${file.name}（格式无法识别）`);
+                            }
+                        } catch (error) {
+                            failedFiles.push(`${file.name}（错误：${error.message.slice(0, 20)}...）`);
+                            console.error(`处理文件 ${file.name} 失败：`, error);
+                        }
+                    }
+
+                    // 合并新图片到现有列表
+                    this.state.imageItems = [...this.state.imageItems, ...newImages];
+
+                    // 隐藏加载状态
+                    this.dom.loadingState.classList.add('hidden');
+
+                    // 处理上传结果
+                    if (failedFiles.length > 0) {
+                        this.showErrorToast(`成功加载 ${newImages.length} 张，失败 ${failedFiles.length} 张`);
+                    } else if (newImages.length > 0) {
+                        this.showSuccessToast(`成功加载 ${newImages.length} 张图片`);
+                    }
+
+                    // 重置布局
+                    this._resetLayout();
+                    setTimeout(() => {
+                        this.calculateAndRenderRectangle();
+                    }, 100);
+
+                    // 统一更新UI状态
+                    this.updateUIState();
+                    this._updateWatermarkVisibility();
+
+                    // 文件输入由change事件的finally重置，无需再次设置
+                }
+
+                // 新增：显示带倒计时的成功提示框
+                // 修改showSuccessToast方法，添加点击关闭逻辑
+                showSuccessToast(message) {
+                    const toast = document.getElementById('successToast');
+                    const toastMessage = document.getElementById('toastMessage');
+                    const countdownEl = document.getElementById('countdown');
+
+                    // 清空之前的定时器（防止多次触发时冲突）
+                    if (toast.timer) clearInterval(toast.timer);
+
+                    // 设置提示内容
+                    toastMessage.textContent = message;
+                    let seconds = 6;
+                    countdownEl.textContent = seconds;
+
+                    // 显示提示框
+                    toast.classList.remove('hidden');
+                    toast.classList.add('show');
+
+                    // 启动倒计时
+                    toast.timer = setInterval(() => {
+                        seconds--;
+                        countdownEl.textContent = seconds;
+                        if (seconds <= 0) {
+                            this.closeSuccessToast(); // 自动关闭
+                        }
+                    }, 1000);
+
+                    // 点击提示框时关闭
+                    const closeOnClick = () => {
+                        this.closeSuccessToast();
+                        // 移除事件监听（避免重复触发）
+                        toast.removeEventListener('click', closeOnClick);
+                    };
+                    toast.addEventListener('click', closeOnClick);
+                }
+
+                // 新增：关闭提示框的通用方法
+                closeSuccessToast() {
+                    const toast = document.getElementById('successToast');
+                    if (toast.timer) {
+                        clearInterval(toast.timer); // 清除定时器
+                        toast.timer = null;
+                    }
+                    toast.classList.remove('show');
+                    toast.classList.add('hidden');
+                }
+
+                showErrorToast(message) {
+                    const toast = document.getElementById('errorToast');
+                    const toastMessage = document.getElementById('errorToastMessage');
+                    const countdownEl = document.getElementById('errorCountdown');
+                    if (toast.timer) clearInterval(toast.timer);
+                    toastMessage.textContent = message;
+                    let seconds = 6;
+                    countdownEl.textContent = seconds;
+                    toast.classList.remove('hidden');
+                    toast.classList.add('show');
+                    toast.timer = setInterval(() => {
+                        seconds--;
+                        countdownEl.textContent = seconds;
+                        if (seconds <= 0) {
+                            this.closeErrorToast();
+                        }
+                    }, 1000);
+                    const closeOnClick = () => {
+                        this.closeErrorToast();
+                        toast.removeEventListener('click', closeOnClick);
+                    };
+                    toast.addEventListener('click', closeOnClick);
+                }
+
+                closeErrorToast() {
+                    const toast = document.getElementById('errorToast');
+                    if (toast.timer) {
+                        clearInterval(toast.timer);
+                        toast.timer = null;
+                    }
+                    toast.classList.remove('show');
+                    toast.classList.add('hidden');
+                }
+
+                _resetLayout() {
+                    this.state.layoutPositions = [];
+                    this.state.totalHeight = 0;
+                    this.state.rectWidth = 0;
+
+                    const imageContainer = this.dom.imageContainerParent;
+                    if (!imageContainer) return;
+
+                    const containerRect = imageContainer.getBoundingClientRect();
+                    this.state.rectWidth = Math.max(600, Math.round(containerRect.width) || 600);
+
+                    // 清空容器并重新添加水印
+                    this.dom.rectContainer.innerHTML = '';
+                    this.dom.rectContainer.appendChild(this.dom.domWatermark);
+
+                    // 强制容器重绘
+                    this.dom.rectContainer.style.display = 'none';
+                    this.dom.rectContainer.offsetHeight; // 触发重排
+                    this.dom.rectContainer.style.display = 'block';
+
+
+                    if (this.state.imageItems.length > 0) {
+
+                        this.calculateAndRenderRectangle();
+                    }
+                }
+
+                regenerateLayout() {
+                    if (this.state.imageItems.length === 0) return;
+                    this.state.imageItems.sort(() => 0.5 - Math.random());
+                    this.calculateAndRenderRectangle();
+                }
+
+
+                calculateAndRenderRectangle() {
+                    const filteredItems = this.state.imageItems.filter(item =>
+                        item && item.ratio > 0 && isFinite(item.ratio)
+                    );
+
+                    // 空状态处理（比例占位）
+                    if (filteredItems.length === 0) {
+                        this.state.layoutPositions = [];
+                        this.state.totalHeight = 0;
+                        this.dom.rectContainer.style.minHeight = '';
+                        this.dom.rectContainer.style.height = '';
+                        adjustContainerRatio(this.state.aspectRatio);
+                        this.updateUIState();
+                        return;
+                    }
+
+                    // 【有图片时的逻辑 - 从这里开始修改】
+                    this.dom.rectContainer.style.minHeight = 'auto';
+                    this.dom.rectContainer.style.height = 'auto';
+
+                    const itemsForLayout = filteredItems;
+
+                    this.dom.rectContainer.innerHTML = '';
+                    this.dom.rectContainer.appendChild(this.dom.domWatermark);
+
+                    const imageContainer = this.dom.imageContainerParent;
+                    const containerRect = imageContainer.getBoundingClientRect();
+
+                    const containerStyle = window.getComputedStyle(imageContainer);
+                    const paddingLeft = parseFloat(containerStyle.paddingLeft) || 0;
+                    const paddingRight = parseFloat(containerStyle.paddingRight) || 0;
+
+                    this.state.rectWidth = Math.round(imageContainer.clientWidth - paddingLeft - paddingRight);
+
+                    const [w, h] = this.state.aspectRatio.split(':').map(Number);
+                    const targetRatio = w / h;
+                    const baseTargetHeight = this.state.rectWidth / targetRatio;
+                    const viewportCap = Math.max(320, Math.round((window.innerHeight || document.documentElement.clientHeight || 800) * 0.75));
+                    const targetHeight = this.state.aspectRatio === '3:4' ? Math.min(baseTargetHeight, viewportCap) : baseTargetHeight;
+
+                    let estimatedRowCount = Math[(this.state.aspectRatio === '16:9') ? 'floor' : 'ceil'](Math.sqrt(itemsForLayout.length / targetRatio));
+                    estimatedRowCount = Math.max(2, estimatedRowCount);
+                    let idealRowHeight = targetHeight / estimatedRowCount;
+                    idealRowHeight = Math.max(80, Math.min(400, idealRowHeight));
+
+                    let bestLayout = null;
+                    let minCost = Infinity;
+                    const maxIterations = 15;
+                    const rowHeightStep = 15;
+
+                    const originalItems = this.state.imageItems;
+
+                    try {
+                        this.state.imageItems = filteredItems;
+
+                        for (let i = 0; i < maxIterations; i++) {
+                            const layout = this._findLayoutForTargetHeight(this.state.rectWidth, idealRowHeight);
+                            if (!layout || layout.totalHeight === 0 || layout.positions.length !== itemsForLayout.length) continue;
+
+                            const ratioDiff = Math.abs(layout.totalHeight - targetHeight) / targetHeight;
+                            const rowHeights = layout.positions.reduce((acc, pos) => {
+                                if (pos.x === 0) acc.push(pos.height);
+                                return acc;
+                            }, []);
+                            const rowCount = rowHeights.length;
+                            const avgRowHeight = rowHeights.length > 0 ? rowHeights.reduce((sum, h) => sum + h, 0) / rowHeights.length : 0;
+                            const rowHeightDiff = rowHeights.reduce((sum, h) => sum + Math.pow(h - avgRowHeight, 2), 0) / (rowHeights.length || 1);
+                            const colCount = rowCount > 0 ? Math.ceil(layout.positions.length / rowCount) : 0;
+
+                            const ratioWeight = this.state.aspectRatio === '16:9' ? 1100 : 700;
+                            const tooWidePenalty = layout.totalHeight < targetHeight
+                                ? ((targetHeight - layout.totalHeight) / targetHeight) * (this.state.aspectRatio === '16:9' ? 1000 : 800)
+                                : 0;
+                            const tooTallPenalty = layout.totalHeight > targetHeight
+                                ? ((layout.totalHeight - targetHeight) / targetHeight) * (this.state.aspectRatio === '3:4' ? 1600 : 900)
+                                : 0;
+                            const expectedRows16x9 = Math.max(2, Math.floor(Math.sqrt(itemsForLayout.length / targetRatio)));
+                            const rowCountPenalty = this.state.aspectRatio === '16:9' && rowCount > expectedRows16x9
+                                ? Math.pow(rowCount - expectedRows16x9, 2) * 160
+                                : 0;
+                            const totalCost = ratioDiff * ratioWeight + rowHeightDiff * 0.3 + tooWidePenalty + tooTallPenalty + rowCountPenalty;
+
+                            if (totalCost < minCost) {
+                                minCost = totalCost;
+                                bestLayout = layout;
+                            }
+
+                            const currentRatio = this.state.rectWidth / layout.totalHeight;
+                            const currentTotalHeight = layout.totalHeight;
+                            const heightDiff = currentTotalHeight - targetHeight;
+
+                            if (heightDiff > 20) {
+                                idealRowHeight = Math.max(80, idealRowHeight - rowHeightStep * (1 + Math.abs(heightDiff) / targetHeight));
+                            } else if (heightDiff < -20) {
+                                idealRowHeight += rowHeightStep * (1 + Math.abs(heightDiff) / targetHeight);
+                            } else {
+                                idealRowHeight += heightDiff > 0 ? -rowHeightStep / 2 : rowHeightStep / 2;
+                            }
+                        }
+
+                        if (!bestLayout) {
+                            throw new Error("未计算出有效布局");
+                        }
+
+                        console.log("===== 布局计算完成 =====");
+                        console.log("图片数量：", filteredItems.length);
+                        console.log("计算的拼图总高度（bestLayout.totalHeight）：", bestLayout.totalHeight);
+                        console.log("拼图容器宽度（rectWidth）：", this.state.rectWidth);
+                        console.log("目标比例（targetRatio）：", targetRatio);
+
+                        const finalRatio = this.state.rectWidth / bestLayout.totalHeight;
+                        const finalDiff = Math.abs(finalRatio - targetRatio);
+                        let finalRowCount = bestLayout.positions.filter(pos => pos.x === 0).length;
+                        let finalColCount = Math.ceil(bestLayout.positions.length / finalRowCount);
+
+                        if (finalDiff > 0.01) {
+                            const adjustedTotalHeight = bestLayout.totalHeight * (targetRatio / finalRatio);
+                            const adjustedRowHeight = adjustedTotalHeight / finalRowCount;
+                            const adjustedLayout = this._findLayoutForTargetHeight(this.state.rectWidth, adjustedRowHeight);
+
+                            if (adjustedLayout && adjustedLayout.totalHeight > 0) {
+                                const newDiff = Math.abs(this.state.rectWidth / adjustedLayout.totalHeight - targetRatio);
+                                const newRowCount = adjustedLayout.positions.filter(pos => pos.x === 0).length;
+                                if (newDiff < finalDiff) {
+                                    bestLayout = adjustedLayout;
+                                    finalRowCount = newRowCount;
+                                }
+                            }
+                        }
+
+                        if (this.state.aspectRatio === '16:9') {
+                            const targetHeightExact = this.state.rectWidth / targetRatio;
+                            const baseRowCount = bestLayout.positions.filter(p => p.x === 0).length;
+                            let tunedLayout = bestLayout;
+                            let tunedDiff = Math.abs(this.state.rectWidth / tunedLayout.totalHeight - targetRatio);
+                            const baseRowHeight = tunedLayout.totalHeight / Math.max(1, baseRowCount);
+                            let low = baseRowHeight * 0.85;
+                            let high = baseRowHeight * 1.15;
+                            for (let i = 0; i < 10; i++) {
+                                const mid = (low + high) / 2;
+                                const lay = this._calculateJustifiedLayout(this.state.rectWidth, mid);
+                                if (!lay || !isFinite(lay.totalHeight) || lay.totalHeight <= 0) break;
+                                const diff = Math.abs(this.state.rectWidth / lay.totalHeight - targetRatio);
+                                if (diff < tunedDiff) { tunedLayout = lay; tunedDiff = diff; }
+                                if (lay.totalHeight > targetHeightExact) { high = mid; } else { low = mid; }
+                            }
+                            const currentDiff = Math.abs(this.state.rectWidth / bestLayout.totalHeight - targetRatio);
+                            if (tunedDiff < currentDiff) { bestLayout = tunedLayout; }
+
+                            let candidateBest = bestLayout;
+                            let candidateBestCost = Math.abs(this.state.rectWidth / candidateBest.totalHeight - targetRatio) * 1100;
+                            for (let k = 2; k <= 5; k++) {
+                                const h = targetHeightExact / k;
+                                const cand = this._findLayoutForTargetHeight(this.state.rectWidth, h);
+                                if (!cand || !cand.positions || cand.positions.length !== itemsForLayout.length || !isFinite(cand.totalHeight) || cand.totalHeight <= 0) continue;
+                                const diff = Math.abs(this.state.rectWidth / cand.totalHeight - targetRatio);
+                                const rowHeights = cand.positions.reduce((acc, pos) => { if (pos.x === 0) acc.push(pos.height); return acc; }, []);
+                                const avgRow = rowHeights.length > 0 ? rowHeights.reduce((s, v) => s + v, 0) / rowHeights.length : 0;
+                                const varRow = rowHeights.reduce((s, v) => s + Math.pow(v - avgRow, 2), 0) / (rowHeights.length || 1);
+                                const cost = diff * 1100 + varRow * 0.2;
+                                if (cost < candidateBestCost) { candidateBest = cand; candidateBestCost = cost; }
+                            }
+                            const currentCost = Math.abs(this.state.rectWidth / bestLayout.totalHeight - targetRatio) * 1100;
+                            if (candidateBestCost < currentCost) { bestLayout = candidateBest; }
+                        }
+
+                        if (this.state.aspectRatio === '3:4') {
+                            const targetHeightExact = this.state.rectWidth / targetRatio;
+                            const baseRowCount = bestLayout.positions.filter(p => p.x === 0).length;
+                            let tunedLayout = bestLayout;
+                            let tunedDiff = Math.abs(this.state.rectWidth / tunedLayout.totalHeight - targetRatio);
+                            const baseRowHeight = tunedLayout.totalHeight / Math.max(1, baseRowCount);
+                            let low = baseRowHeight * 0.9;
+                            let high = baseRowHeight * 1.1;
+                            for (let i = 0; i < 10; i++) {
+                                const mid = (low + high) / 2;
+                                const lay = this._calculateJustifiedLayout(this.state.rectWidth, mid);
+                                if (!lay || !isFinite(lay.totalHeight) || lay.totalHeight <= 0) break;
+                                const diff = Math.abs(this.state.rectWidth / lay.totalHeight - targetRatio);
+                                if (diff < tunedDiff) { tunedLayout = lay; tunedDiff = diff; }
+                                if (lay.totalHeight > targetHeightExact) { high = mid; } else { low = mid; }
+                            }
+                            const currentDiff = Math.abs(this.state.rectWidth / bestLayout.totalHeight - targetRatio);
+                            if (tunedDiff < currentDiff) { bestLayout = tunedLayout; }
+                        }
+
+                        this.state.layoutPositions = bestLayout.positions;
+                        this.state.totalHeight = bestLayout.totalHeight;
+
+                        const finalRatioFinal = this.state.rectWidth / bestLayout.totalHeight;
+                        const finalDiffFinal = Math.abs(finalRatioFinal - targetRatio);
+
+                        const unscaledWidth = Math.round(this.state.rectWidth);
+                        const unscaledHeight = Math.round(bestLayout.totalHeight);
+                        const finalContainerWidth = unscaledWidth;
+                        const finalContainerMinHeight = unscaledHeight;
+
+                        setTimeout(() => {
+                            const requiredParentHeight = finalContainerMinHeight + 40
+
+                                        // 1. 拼图容器：用 cssText 彻底覆盖所有关键样式
+                            this.dom.rectContainer.style.cssText = `
+                width: ${finalContainerWidth}px !important;
+                min-height: ${finalContainerMinHeight}px !important;
+                height: auto !important;
+                padding-top: 0 !important;
+                padding-bottom: 20px !important;
+                display: block !important;
+                overflow: visible !important;
+                max-height: none !important;
+                margin: 0 auto !important;
+                position: relative !important;
+                box-sizing: border-box !important;
+                background-color: #ffffff !important;
+                box-shadow: var(--shadow-inner) !important;
+                border: 1px solid #f0f0f0 !important;
+            `;
+
+                            // 2. 父容器：用 cssText 锁定高度，避免为空
+                            this.dom.imageContainerParent.style.cssText = `
+                height: ${requiredParentHeight}px !important;
+                min-height: ${requiredParentHeight}px !important;
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: center !important;
+                justify-content: flex-start !important;
+                overflow: auto !important;
+                max-height: none !important;
+                padding: clamp(8px, 1vw, 16px) !important;
+                box-sizing: border-box !important;
+                background-color: #ffffff !important;
+                position: relative !important;
+                margin: clamp(0.25rem, 1vw, 0.5rem) !important;
+            `;
+
+                        // 触发 DOM 重绘，强制浏览器应用样式
+                            this.dom.rectContainer.offsetHeight;
+                            this.dom.imageContainerParent.offsetHeight;
+
+                            // 输出最终确认日志
+                            console.log("===== 最终样式确认 =====");
+                            console.log("拼图容器 min-height（计算值）：", unscaledHeight);
+                            console.log("拼图容器 min-height（实际值）：", window.getComputedStyle(this.dom.rectContainer).minHeight);
+                            console.log("父容器 height（计算值）：", requiredParentHeight);
+                            console.log("父容器 height（实际值）：", window.getComputedStyle(this.dom.imageContainerParent).height);
+                        }, 100);
+
+                            // 渲染图片（必须在高度设置之后）
+                        this._placeImagesInRectangle(this.state.layoutPositions);
+                        
+
+                        // 后续样式设置（注意：不要在这里重新设置父容器高度为100%，会覆盖上面的同步结果）
+                        this.dom.rectContainer.style.transform = 'none';
+                        this.dom.rectContainer.style.transformOrigin = 'top left';
+                        this.dom.rectContainer.style.overflow = 'visible'; // 改为visible，避免裁剪图片
+                        this.dom.rectContainer.style.maxHeight = "none"; // 移除最大高度限制
+                        this.dom.rectContainer.style.overflowY = "visible";
+                        // 父容器允许纵向滚动，避免横向滚动
+                        this.dom.imageContainerParent.style.overflowY = "auto";
+                        this.dom.imageContainerParent.style.overflowX = 'hidden';
+                        this.dom.imageContainerParent.style.maxHeight = 'none';
+                        this.dom.imageContainerParent.style.minHeight = 'auto';
+                        this.dom.imageContainerParent.style.position = 'relative';
+
+                        this.dom.rectContainer.style.display = 'block';
+                        this.dom.rectContainer.style.position = 'relative';
+
+                        // 替换原有的setTimeout日志代码
+                        setTimeout(() => {
+                            const rectContainer = this.dom.rectContainer;
+                            const parentContainer = this.dom.imageContainerParent;
+
+                            // 输出设置值（此时测量值可能仍不准，但实际显示已正确）
+                            console.log("===== 图片渲染后最终尺寸 =====");
+                            console.log("拼图容器设置的min-height：", rectContainer.style.minHeight);
+                            console.log("父容器设置的height：", parentContainer.style.height);
+                            console.log("父容器overflow：", window.getComputedStyle(parentContainer).overflow);
+                        }, 200); // 延迟200ms，确保图片完全渲染                     
+                        this.updateUIState();
+                        this._updateWatermarkVisibility();
+
+                    } catch (error) {
+                        console.error('布局计算错误:', error);
+                    } finally {
+                        this.state.imageItems = originalItems;
+                    }
+                }
+
+
+
+                _findLayoutForTargetHeight(containerWidth, idealRowHeight) {
+                    const [wRatio, hRatio] = this.state.aspectRatio.split(':').map(Number);
+                    const targetRatio = wRatio / hRatio;
+                    const itemCount = this.state.imageItems.length;
+
+                    if (itemCount === 0) {
+                        return { positions: [], totalHeight: 0 };
+                    }
+
+                    // 自动推算列数并限制最大值
+                    const approxCols = Math.round(Math.sqrt(itemCount * targetRatio));
+                    const baseColCount = Math.min(8, Math.max(1, approxCols));
+
+                    // 初步理想行高，根据列数动态调整
+                    const adjustedIdealRowHeight = (containerWidth / (targetRatio * baseColCount)) * (this.state.aspectRatio === '16:9' ? 1.12 : 1);
+
+                    let low = Math.max(50, adjustedIdealRowHeight * 0.5);
+                    let high = Math.min(800, adjustedIdealRowHeight * 2);
+
+                    let bestLayout = this._calculateJustifiedLayout(containerWidth, adjustedIdealRowHeight);
+
+                    if (!bestLayout || bestLayout.totalHeight <= 0 || !isFinite(bestLayout.totalHeight)) {
+                        bestLayout = this._calculateJustifiedLayout(containerWidth, this.CONFIG.IDEAL_ROW_HEIGHT);
+                        if (!bestLayout || bestLayout.totalHeight <= 0 || !isFinite(bestLayout.totalHeight)) {
+                            return { positions: [], totalHeight: 0 };
+                        }
+                    }
+
+                    let minLayoutDiff = Infinity;
+                    if (bestLayout.positions.length > 0) {
+                        const rowHeights = bestLayout.positions.reduce((acc, pos) => {
+                            if (pos.x === 0) acc.push(pos.height);
+                            return acc;
+                        }, []);
+                        const averageRowHeight = rowHeights.length > 0 ? rowHeights.reduce((sum, h) => sum + h, 0) / rowHeights.length : 0;
+                        const diff = Math.abs(averageRowHeight - adjustedIdealRowHeight);
+                        minLayoutDiff = diff;
+                    } else {
+                        return { positions: [], totalHeight: 0 };
+                    }
+
+                    for (let i = 0; i < this.CONFIG.BINARY_SEARCH_ITERATIONS; i++) {
+                        const midRowHeight = (low + high) / 2;
+                        if (high - low < 0.5 || i === this.CONFIG.BINARY_SEARCH_ITERATIONS - 1) break;
+                        const layout = this._calculateJustifiedLayout(containerWidth, midRowHeight);
+
+                        if (!isFinite(layout.totalHeight) || layout.totalHeight <= 0) {
+                            high = midRowHeight;
+                            continue;
+                        }
+
+                        const rowHeights = layout.positions.reduce((acc, pos) => {
+                            if (pos.x === 0) acc.push(pos.height);
+                            return acc;
+                        }, []);
+                        const averageRowHeight = rowHeights.length > 0 ? rowHeights.reduce((sum, h) => sum + h, 0) / rowHeights.length : 0;
+                        const diff = Math.abs(averageRowHeight - adjustedIdealRowHeight);
+
+                        if (diff < minLayoutDiff) {
+                            minLayoutDiff = diff;
+                            bestLayout = layout;
+                        }
+
+                        if (averageRowHeight < adjustedIdealRowHeight) {
+                            low = midRowHeight;
+                        } else {
+                            high = midRowHeight;
+                        }
+                    }
+
+                    if (!bestLayout || !bestLayout.positions || bestLayout.totalHeight <= 0) {
+                        return { positions: [], totalHeight: 0 };
+                    }
+
+                    const finalRatio = containerWidth / bestLayout.totalHeight;
+                    const finalDiff = Math.abs(finalRatio - targetRatio);
+
+                    // 更严格的比例校验与调整
+                    if (finalDiff > 0.02) {
+                        const adjustRatio = targetRatio / finalRatio;
+                        const adjustedTotalHeight = bestLayout.totalHeight * adjustRatio;
+                        const rowCount = bestLayout.positions.filter(pos => pos.x === 0).length;
+                        let adjustedRowHeight = 200;
+                        if (isFinite(adjustedTotalHeight) && adjustedTotalHeight > 0) {
+                            adjustedRowHeight = rowCount > 0 ? adjustedTotalHeight / rowCount : 200;
+                        }
+                        const adjustedLayout = this._calculateJustifiedLayout(containerWidth, adjustedRowHeight);
+                        if (adjustedLayout && adjustedLayout.totalHeight > 0) {
+                            const newDiff = Math.abs(containerWidth / adjustedLayout.totalHeight - targetRatio);
+                            if (newDiff < finalDiff) {
+                                bestLayout = adjustedLayout;
+                            }
+                        }
+                    }
+
+                    return bestLayout;
+                }
+
+                _calculateJustifiedLayout(containerWidth, idealHeight) {
+                    const items = this.state.imageItems;
+                    if (!items || items.length === 0) return { positions: [], totalHeight: 0 };
+                    const { GAP } = this.CONFIG;
+                    const costs = [0];
+                    const partitions = [0];
+
+                    for (let i = 1; i <= items.length; i++) {
+                        let minCost = Infinity, bestPartition = 0;
+                        const [wRatio, hRatio] = this.state.aspectRatio.split(':').map(Number);
+                        const targetRatio = wRatio / hRatio;
+                        const maxPossibleColumns = 100;
+
+                        for (let j = Math.max(1, i - maxPossibleColumns); j <= i; j++) {
+                            if (costs[j - 1] === Infinity) continue;
+
+                            const rowItems = items.slice(j - 1, i);
+                            const sumOfRatios = rowItems.reduce((sum, item) => sum + item.ratio, 0);
+                            const gapSpace = (rowItems.length - 1) * GAP;
+
+                            if (containerWidth <= gapSpace || sumOfRatios <= 0 || !isFinite(sumOfRatios)) continue;
+
+                            const rowHeight = (containerWidth - gapSpace) / sumOfRatios;
+                            if (!isFinite(rowHeight) || rowHeight <= 0) continue;
+
+                            const currentRowRatio = containerWidth / rowHeight;
+                            const ratioDiff = Math.abs(currentRowRatio - targetRatio);
+
+                        const rowHeightCost = Math.pow(Math.abs(rowHeight - idealHeight), 2) * 0.5;
+                        const asymFactor = this.state.aspectRatio === '16:9' ? 1000 : (this.state.aspectRatio === '3:4' ? 900 : 700);
+                        const nearBonus = ratioDiff < 0.02 ? -200 : 0;
+                        const ratioPenalty = currentRowRatio > targetRatio
+                            ? Math.pow(currentRowRatio - targetRatio, 2) * asymFactor
+                            : Math.pow(targetRatio - currentRowRatio, 2) * (asymFactor * 0.5);
+                        const currentCost = costs[j - 1] + rowHeightCost + ratioPenalty + nearBonus;
+
+                            if (currentCost < minCost) {
+                                minCost = currentCost;
+                                bestPartition = j;
+                            }
+                        }
+                        costs[i] = minCost;
+                        partitions[i] = bestPartition;
+                    }
+
+                    const rows = [];
+                    let currentIndex = items.length;
+
+                    while (currentIndex > 0) {
+                        let startIndex = partitions[currentIndex];
+                        if (startIndex <= 0 || startIndex > currentIndex) {
+                            const [wRatio] = this.state.aspectRatio.split(':').map(Number);
+                            const defaultSplit = Math.max(1, currentIndex - (wRatio > 4 ? 5 : 4));
+                            startIndex = defaultSplit;
+                        }
+                        rows.unshift(items.slice(startIndex - 1, currentIndex));
+                        currentIndex = startIndex - 1;
+                    }
+
+                    const positions = [];
+                    let currentY = 0;
+                    for (const rowItems of rows) {
+                        const sumOfRatios = rowItems.reduce((sum, item) => sum + item.ratio, 0);
+                        const gapSpace = (rowItems.length - 1) * GAP;
+                        if (sumOfRatios <= 0) continue;
+
+                        const rowHeight = (containerWidth - gapSpace) / sumOfRatios;
+                        if (!isFinite(rowHeight)) continue;
+
+                        let currentX = 0;
+                        for (const item of rowItems) {
+                            const itemWidth = rowHeight * item.ratio;
+                            positions.push({ x: currentX, y: currentY, width: itemWidth, height: rowHeight });
+                            currentX += itemWidth + GAP;
+                        }
+                        currentY += rowHeight + GAP;
+                    }
+                    const totalHeight = currentY > 0 ? currentY - GAP : 0;
+                    return { positions, totalHeight };
+                }
+
+                _placeImagesInRectangle(positions) {
+                    const container = this.dom.rectContainer;
+
+                    const oldItems = container.querySelectorAll('.rect-item');
+                    oldItems.forEach(item => item.remove());
+
+                    if (!container.contains(this.dom.domWatermark)) {
+                        container.appendChild(this.dom.domWatermark);
+                    }
+
+                    positions.forEach((pos, i) => {
+                        this._placeSingleImage(i, pos);
+                    });
+                }
+
+                _placeSingleImage(index, position) {
+                    const imageItem = this.state.imageItems[index];
+                    if (!imageItem || !position) return;
+
+                    const item = document.createElement('div');
+                    item.className = 'rect-item rounded-sm';
+                    const itemWidth = Math.round(position.width);
+                    const itemHeight = Math.round(position.height);
+
+                    item.style.cssText = `
+        left: ${Math.round(position.x)}px;
+        top: ${Math.round(position.y)}px;
+        width: ${itemWidth}px;
+        height: ${itemHeight}px;
+        position: absolute;
+        overflow: visible;
+    `;
+
+                    const img = new Image();
+                    img.src = imageItem.src;
+                    img.alt = imageItem.name;
+                    img.style.width = '100%';
+                    img.style.height = '100%';
+                    img.style.objectFit = 'contain'; // 确保图片完整显示
+
+                    // 图片加载完成后，再次调整容器高度
+                    img.onload = () => {
+                        const rectContainer = this.dom.rectContainer;
+                        const parentContainer = this.dom.imageContainerParent;
+                        const rectRect = rectContainer.getBoundingClientRect();
+
+                        // 如果图片实际高度超过容器，强制扩展
+                        if (img.height > itemHeight) {
+                            rectContainer.style.height = `${Math.max(rectRect.height, img.height + position.y + 20)}px`;
+                            parentContainer.style.height = `${rectContainer.getBoundingClientRect().height + 20}px`;
+                        }
+                    };
+
+                    item.appendChild(img);
+                    item.addEventListener('click', () => this.openModal(index));
+                    this.dom.rectContainer.appendChild(item);
+                }
+
+
+                openModal(index) {
+                    this.state.currentPreviewIndex = index;
+                    this.dom.imageModal.classList.remove('hidden');
+                    document.body.style.overflow = 'hidden';
+                    this.updateModalContent();
+                }
+                closeModal() {
+                    this.dom.imageModal.classList.add('hidden');
+                    document.body.style.overflow = '';
+                }
+
+                switchPreviewImage(direction) {
+                    const newIndex = this.state.currentPreviewIndex + direction;
+                    if (newIndex >= 0 && newIndex < this.state.imageItems.length) {
+                        this.state.currentPreviewIndex = newIndex;
+                        this.updateModalContent();
+                    }
+                }
+
                 updateModalContent() {
-                    const item = this.state.imageItems[this.state.currentPreviewIndex]; if (!item) return;
-                    this.dom.modalImage.src = item.src; 
+                    const item = this.state.imageItems[this.state.currentPreviewIndex];
+                    if (!item) return;
+
+                    if (this._pendingDeleteTimeout) { clearTimeout(this._pendingDeleteTimeout); this._pendingDeleteTimeout = null; }
+                    this._pendingDelete = false;
+                    if (this.dom && this.dom.deleteSingleBtn) {
+                        this.dom.deleteSingleBtn.innerHTML = '<i class="fa fa-trash"></i> <span class="hidden sm:inline">删除</span>';
+                        this.dom.deleteSingleBtn.style.borderColor = '';
+                    }
+
+                    this.dom.modalImage.src = item.src;
                     this.dom.imageName.textContent = item.name;
-                    this.dom.modalImgSize.textContent = `${item.width} × ${item.height}`; 
+                    this.dom.modalImgSize.textContent = `${item.width} × ${item.height}`;
                     this.dom.modalImgRatio.textContent = item.ratio.toFixed(2);
                     this.dom.currentImageIndex.textContent = this.state.currentPreviewIndex + 1;
                     this.dom.totalImageCount.textContent = this.state.imageItems.length;
                     this.dom.prevImageBtn.disabled = this.state.currentPreviewIndex === 0;
                     this.dom.nextImageBtn.disabled = this.state.imageItems.length === 0 || this.state.currentPreviewIndex === this.state.imageItems.length - 1;
                 }
-                
-                clearAllImages() { 
-                    if (confirm('您确定要清空所有图片吗？')) { 
-                        this.state.imageItems = []; 
-                        this.dom.rectContainer.innerHTML = ''; 
-                        this.dom.rectContainer.appendChild(this.dom.domWatermark); // 重新添加水印层
-                        this.dom.routeNumberInput.value = '';
+
+                clearAllImages() {
+                    if (!this._pendingClear) {
+                        this._pendingClear = true;
+                        if (this._pendingClearTimeout) { clearTimeout(this._pendingClearTimeout); }
+                        if (this.dom && this.dom.clearBtn) {
+                            this.dom.clearBtn.innerHTML = '<i class="fa fa-exclamation-triangle"></i> <span class="hidden sm:inline">再次点击确认</span>';
+                            this.dom.clearBtn.style.setProperty('border-color', 'rgb(225, 29, 72)', 'important');
+                            this.dom.clearBtn.style.setProperty('background', 'rgb(225, 29, 72)', 'important');
+                            this.dom.clearBtn.style.setProperty('color', '#fff', 'important');
+                        }
+                        this._pendingClearTimeout = setTimeout(() => {
+                            this._pendingClear = false;
+                            if (this.dom && this.dom.clearBtn) {
+                                this.dom.clearBtn.innerHTML = '<i class="fa fa-trash"></i> <span class="hidden sm:inline">清空</span>';
+                                this.dom.clearBtn.style.removeProperty('border-color');
+                                this.dom.clearBtn.style.removeProperty('background');
+                                this.dom.clearBtn.style.removeProperty('color');
+                            }
+                        }, 5000);
+                        return;
+                    }
+                    if (this._pendingClearTimeout) { clearTimeout(this._pendingClearTimeout); this._pendingClearTimeout = null; }
+                    this._pendingClear = false;
+                    this.state.imageItems = [];
+                    this.dom.rectContainer.innerHTML = '';
+                    this.dom.rectContainer.appendChild(this.dom.domWatermark);
+                    this.dom.routeNumberInput.value = '';
+                    this.updateUIState();
+                    this._updateWatermarkVisibility();
+                    this.dom.rectContainer.style.width = '';
+                    this.dom.rectContainer.style.height = '';
+                    adjustContainerRatio(this.state.aspectRatio);
+                    if (typeof this.showSuccessToast === 'function') { this.showSuccessToast('已清空图片'); }
+                    if (this.dom && this.dom.clearBtn) {
+                        this.dom.clearBtn.innerHTML = '<i class="fa fa-trash"></i> <span class="hidden sm:inline">清空</span>';
+                        this.dom.clearBtn.style.removeProperty('border-color');
+                        this.dom.clearBtn.style.removeProperty('background');
+                        this.dom.clearBtn.style.removeProperty('color');
+                    }
+                }
+                deleteCurrentImage() {
+                    if (!this._pendingDelete) {
+                        this._pendingDelete = true;
+                        if (this.dom && this.dom.deleteSingleBtn) {
+                            this.dom.deleteSingleBtn.innerHTML = '<i class="fa fa-exclamation-triangle"></i> <span class="hidden sm:inline">再次点击确认</span>';
+                            this.dom.deleteSingleBtn.style.setProperty('border-color', 'rgb(225, 29, 72)', 'important');
+                            this.dom.deleteSingleBtn.style.setProperty('background', 'rgb(225, 29, 72)', 'important');
+                            this.dom.deleteSingleBtn.style.setProperty('color', '#fff', 'important');
+                        }
+                        if (this._pendingDeleteTimeout) { clearTimeout(this._pendingDeleteTimeout); }
+                        this._pendingDeleteTimeout = setTimeout(() => {
+                            this._pendingDelete = false;
+                            if (this.dom && this.dom.deleteSingleBtn) {
+                                this.dom.deleteSingleBtn.innerHTML = '<i class="fa fa-trash"></i> <span class="hidden sm:inline">删除</span>';
+                                this.dom.deleteSingleBtn.style.removeProperty('border-color');
+                                this.dom.deleteSingleBtn.style.removeProperty('background');
+                                this.dom.deleteSingleBtn.style.removeProperty('color');
+                            }
+                        }, 5000);
+                        return;
+                    }
+                    if (this._pendingDeleteTimeout) { clearTimeout(this._pendingDeleteTimeout); this._pendingDeleteTimeout = null; }
+                    this._pendingDelete = false;
+                    if (typeof this.closeErrorToast === 'function') { this.closeErrorToast(); }
+                    this.state.imageItems.splice(this.state.currentPreviewIndex, 1);
+                    this.closeModal();
+                    this.showSuccessToast('图片已删除');
+                    if (this.state.imageItems.length > 0) {
+                        this.state.currentPreviewIndex = Math.min(this.state.currentPreviewIndex, this.state.imageItems.length - 1);
+                        this.calculateAndRenderRectangle();
+                    } else {
                         this.updateUIState();
-                        this._updateWatermarkVisibility();
-                    } 
+                    }
                 }
-                deleteCurrentImage() { 
-                    if (confirm('您确定要删除这张图片吗？')) { 
-                        this.state.imageItems.splice(this.state.currentPreviewIndex, 1); 
-                        this.closeModal(); 
-                        if (this.state.imageItems.length > 0) { 
-                            this.state.currentPreviewIndex = Math.min(this.state.currentPreviewIndex, this.state.imageItems.length - 1); 
-                            this.calculateAndRenderRectangle(); 
-                        } else { 
-                            this.updateUIState(); 
-                        } 
-                    } 
+                downloadSingleImage() {
+                    const item = this.state.imageItems[this.state.currentPreviewIndex];
+                    if (!item) return;
+
+                    const a = document.createElement('a');
+                    a.href = item.src;
+                    a.download = item.name;
+
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
                 }
-                downloadSingleImage() { const item = this.state.imageItems[this.state.currentPreviewIndex]; if (!item) return; const a = document.createElement('a'); a.href = item.src; a.download = item.name; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
 
 
                 _resetDownloadState() {
                     this.state.isDownloading = false;
-                    this.dom.downloadBtn.innerHTML = '<i class="fa fa-download"></i> <span>下载拼图</span>';
+                    this.dom.downloadBtn.innerHTML = '<i class="fa fa-download"></i> <span class="hidden sm:inline">下载</span>';
                     this.dom.downloadOverlay.classList.add('hidden');
                     this.dom.downloadOverlay.classList.remove('flex');
                     this.dom.downloadProgressBar.style.width = '0%';
@@ -148,145 +2682,227 @@ _placeSingleImage(index, position) {
                     this.updateUIState();
                 }
 
-                // 核心：使用 html-to-image 截图 DOM 元素
                 async downloadRectangle() {
                     if (this.state.isDownloading || this.state.imageItems.length === 0) return;
                     const watermarkText = this.dom.routeNumberInput.value.trim();
-                    if (watermarkText === '') { this.updateUIState(); return; }
+                    if (watermarkText === '') {
+                        this.updateUIState();
+                        return;
+                    }
+
+                    const qualityLevels = [3, 2, 1];
+                    const startIndex = qualityLevels.indexOf(this.state.renderQuality);
+                    const retryLevels = startIndex > -1
+                        ? qualityLevels.slice(startIndex)
+                        : [2, 1];
 
                     this.state.isDownloading = true;
-                    this.dom.downloadOverlay.classList.remove('hidden'); this.dom.downloadOverlay.classList.add('flex');
-                    this.dom.downloadBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> <span>正在生成...</span>';
-                    
-                    const currentScale = getScale();
-                    this.dom.downloadOverlay.querySelector('p:first-child').textContent = `正在生成 ${currentScale}倍 大图...`;
-                    
+                    this.dom.downloadOverlay.classList.remove('hidden');
+                    this.dom.downloadOverlay.classList.add('flex');
                     this.updateUIState();
-                    
-                    const targetElement = this.dom.rectContainer;
-                    
-                    // --- 暂存原始样式 ---
-                    const originalRectShadow = targetElement.style.boxShadow;
-                    const originalRectBorder = targetElement.style.border;
 
-                    try {
-                        // --- 关键修复 1: 隐藏下载遮罩 ---
-                        const overlayWasVisible = !this.dom.downloadOverlay.classList.contains('hidden');
-                        if(overlayWasVisible) {
-                            this.dom.downloadOverlay.style.visibility = 'hidden'; 
+                    let success = false;
+                    let lastError;
+                    const originalQuality = this.state.renderQuality;
+
+                    for (const quality of retryLevels) {
+                        try {
+                            this.dom.downloadOverlay.querySelector('p:first-child').textContent =
+                                `正在生成 ${quality}x 大图...`;
+                            this.dom.downloadBtn.innerHTML =
+                                `<i class="fa fa-spinner fa-spin"></i> <span>尝试 ${quality}x 清晰度</span>`;
+
+                            this.state.renderQuality = quality;
+                            document.querySelector(`input[name="renderQuality"][value="${quality}"]`).checked = true;
+                            this.updateRatioButtonState(quality.toString(), 'renderQuality');
+
+                            this.calculateAndRenderRectangle();
+                            await new Promise(resolve => setTimeout(resolve, 500));
+
+                            const targetElement = this.dom.rectContainer;
+                            let dataUrl;
+                            if (window.htmlToImage && typeof window.htmlToImage.toJpeg === 'function') {
+                                dataUrl = await htmlToImage.toJpeg(targetElement, {
+                                    quality: this.CONFIG.JPEG_QUALITY,
+                                    pixelRatio: quality,
+                                    backgroundColor: '#ffffff',
+                                    fetch: { mode: 'no-cors' },
+                                    fontEmbedCSS: false,
+                                    useCORS: false
+                                });
+                            } else {
+                                if (!window.html2canvas) {
+                                    try {
+                                        await loadScript('https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js');
+                                    } catch (e) {
+                                        try {
+                                            await loadScript('https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js');
+                                        } catch (e2) {}
+                                    }
+                                }
+                                if (window.html2canvas) {
+                                    const canvas = await html2canvas(targetElement, {
+                                        backgroundColor: '#ffffff',
+                                        scale: quality,
+                                        useCORS: true,
+                                        allowTaint: true
+                                    });
+                                    dataUrl = canvas.toDataURL('image/jpeg', this.CONFIG.JPEG_QUALITY);
+                                } else {
+                                    throw new Error('渲染库未加载');
+                                }
+                            }
+
+                            const a = document.createElement('a');
+                            a.href = dataUrl;
+                            a.download = `${watermarkText}-S${quality}x-${Date.now()}.jpeg`;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+
+                            success = true;
+                            this.showSuccessToast(`已使用 ${quality}x 清晰度下载成功`);
+                            this.state.renderQuality = originalQuality;
+                            const backRadio = document.querySelector(`input[name="renderQuality"][value="${originalQuality}"]`);
+                            if (backRadio) backRadio.checked = true;
+                            this.updateRatioButtonState(originalQuality.toString(), 'renderQuality');
+                            break;
+                        } catch (error) {
+                            lastError = error;
+                            console.error(`Quality ${quality}x failed:`, error);
                         }
-
-                        // --- 关键修复 2：暂时移除干扰样式 (保留此步骤以防万一) ---
-                        targetElement.style.boxShadow = 'none';
-                        targetElement.style.border = 'none';
-                        
-                        await new Promise(resolve => setTimeout(resolve, 50)); 
-                        
-                        // 3. 使用 htmlToImage 截图
-                        const dataUrl = await htmlToImage.toJpeg(targetElement, {
-                            quality: this.CONFIG.JPEG_QUALITY, 
-                            pixelRatio: currentScale, 
-                            backgroundColor: '#ffffff', // 再次硬编码背景色
-                            skipFonts: true, 
-                        });
-
-
-                        // 4. 恢复 DOM 样式
-                        targetElement.style.boxShadow = originalRectShadow;
-                        targetElement.style.border = originalRectBorder;
-
-                        // 5. 恢复下载遮罩的可见性
-                        if(overlayWasVisible) {
-                            this.dom.downloadOverlay.style.visibility = 'visible';
-                        }
-                        
-                        // 6. 导出 dataUrl (html-to-image 直接返回 DataURL)
-                        const a = document.createElement('a');
-                        a.href = dataUrl;
-                        a.download = `${watermarkText}-S${currentScale}x-${Date.now()}.jpeg`; 
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        
-                    } catch (error) {
-                        console.error('Download Failed:', error);
-                        // 恢复样式
-                        targetElement.style.boxShadow = originalRectShadow;
-                        targetElement.style.border = originalRectBorder;
-
-                        alert(`下载失败: ${error.message}\n\n原因：可能是浏览器环境兼容性问题或内存不足。\n请尝试在**清晰度**选项中切换到 **1x (普通)** 模式。`);
-                    } finally {
-                        this._resetDownloadState();
                     }
+
+                    if (!success) {
+                        this.showErrorToast(`下载失败：${lastError?.message || '未知错误'}`);
+                        this.state.renderQuality = originalQuality;
+                        const backRadio = document.querySelector(`input[name="renderQuality"][value="${originalQuality}"]`);
+                        if (backRadio) backRadio.checked = true;
+                        this.updateRatioButtonState(originalQuality.toString(), 'renderQuality');
+                    }
+
+                    this._resetDownloadState();
                 }
-                
+
                 updateUIState() {
                     const hasImages = this.state.imageItems.length > 0;
                     const routeNumberEntered = this.dom.routeNumberInput.value.trim() !== '';
                     const inputElement = this.dom.routeNumberInput;
-                    
-                    this.dom.imageContainerParent.classList.remove('hidden'); 
-                    this.dom.emptyState.classList.toggle('hidden', hasImages);
-                    this.dom.rectContainer.classList.toggle('hidden', !hasImages);
-                    this.dom.statsBar.classList.toggle('hidden', !hasImages);
-                    
+
+                    this.dom.imageContainerParent.classList.remove('hidden');
+                    if (hasImages) {
+                        this.dom.rectContainer.classList.remove('hidden');
+                        this.dom.emptyState.classList.add('hidden');
+                        this.dom.imageContainerParent.classList.remove('image-container-empty');
+                    } else {
+                        this.dom.rectContainer.classList.remove('hidden');
+                        this.dom.emptyState.classList.remove('hidden');
+                        this.dom.imageContainerParent.classList.add('image-container-empty');
+                        adjustContainerRatio(this.state.aspectRatio);
+                    }
+
                     this.dom.regenerateBtn.disabled = !hasImages || this.state.isDownloading;
                     this.dom.downloadBtn.disabled = !hasImages || this.state.isDownloading || !routeNumberEntered;
                     this.dom.clearBtn.disabled = !hasImages || this.state.isDownloading;
-                    this.dom.fileInputTopLabel.style.opacity = this.state.isDownloading ? 0.6 : 1;
+                    this.dom.fileInputTopBtn.classList.toggle('disabled', this.state.isDownloading);
+                    this.dom.fileInputTopBtn.style.opacity = this.state.isDownloading ? 0.6 : 1;
+
+                    if (!hasImages) {
+                        this.dom.downloadBtn.title = '请先添加图片';
+                    } else if (!routeNumberEntered) {
+                        this.dom.downloadBtn.title = '请输入线路编号';
+                    } else {
+                        this.dom.downloadBtn.removeAttribute('title');
+                    }
 
                     if (hasImages && !routeNumberEntered && !this.state.isDownloading) {
-                        inputElement.classList.add('animate-pulse-primary', 'border-error'); 
+                        inputElement.classList.add('animate-pulse-primary', 'border-error');
                     } else {
                         inputElement.classList.remove('animate-pulse-primary', 'border-error');
                     }
-                    }
+                }
             }
 
-            // --- Initialization ---
-            new GalleryOptimizer();
             
-            // --- Footer Copyright and Quote Rotator (保持不变) ---
+
+            window.addEventListener('load', function () {
+                adjustContainerRatio('4:3');
+            });
+
+            window.galleryOptimizer = new GalleryOptimizer();
+
             const START_YEAR = 2024;
             const currentYear = new Date().getFullYear();
             const yearString = currentYear > START_YEAR ? `${START_YEAR}-${currentYear}` : `${START_YEAR}`;
-            document.getElementById('copyrightFooter').textContent = `${yearString} | 深高创新•学生义工拼图工具 | it王工@2024级创新线长`;
-            
-function setupQuoteRotator() {
-    // 先检查元素是否存在，避免报错
-    const quoteElement = document.getElementById('currentQuote');
-    if (!quoteElement) {
-        console.warn('语录元素未找到');
-        return;
-    }
-    // 简化语录数组，确保有内容
-    const regularQuotes = [
-        "天行健，君子以自强不息","IT王工思路妙，难题一来全解掉！","世上无难事，只怕有心人", "王工出品，必属精品"
-    ];
-    const itPool = ["IT王工技术好，排班效率节节高！"];
-    const finalQuotes = [...regularQuotes, ...itPool];
-    // 确保数组不为空
-    if (finalQuotes.length === 0) {
-        finalQuotes.push("奋斗的青春最美丽");
-    }
-    // 初始显示+定时切换
-    let currentIndex = 0;
-    quoteElement.textContent = finalQuotes[currentIndex];
-    setInterval(() => {
-        currentIndex = (currentIndex + 1) % finalQuotes.length;
-        quoteElement.classList.add('opacity-0');
-        setTimeout(() => {
-            quoteElement.textContent = finalQuotes[currentIndex];
-            quoteElement.classList.remove('opacity-0');
-        }, 500);
-    }, 5000);
-}
+            document.getElementById('copyrightFooter').textContent = `${yearString} | it王工@深高园24级创新线长`;
 
-            setupQuoteRotator();
-                });
-
-
-
+        });
+        window.addEventListener('resize', function () {
+            const rectContainer = document.getElementById('rectContainer');
+            if (rectContainer) {
+                rectContainer.style.width = 'auto';
+                setTimeout(() => {
+                    rectContainer.style.margin = '0 auto';
+                    rectContainer.offsetHeight;
+                    if (window.galleryOptimizer && typeof window.galleryOptimizer._updateWatermarkVisibility === 'function') {
+                        window.galleryOptimizer._updateWatermarkVisibility();
+                    }
+                }, 50);
+            }
+        });
     </script>
+    
+    
+    <style id="force-disabled-styles" media="not all">
+        /* 终极禁用样式 - 使用最优先级选择器 */
+        html body button#regenerateBtn[disabled],
+        html body button#downloadBtn[disabled], 
+        html body button#clearBtn[disabled] {
+            background-color: #6b7280 !important;
+            background: #6b7280 !important;
+            border-color: #6b7280 !important;
+            color: #d1d5db !important;
+            opacity: 0.6 !important;
+            cursor: not-allowed !important;
+            box-shadow: none !important;
+            transform: none !important;
+            filter: grayscale(100%) !important;
+        }
+        
+        /* 强制禁用状态下的图标和文字颜色 */
+        html body button#regenerateBtn[disabled] i,
+        html body button#downloadBtn[disabled] i,
+        html body button#clearBtn[disabled] i,
+        html body button#regenerateBtn[disabled] span,
+        html body button#downloadBtn[disabled] span,
+        html body button#clearBtn[disabled] span {
+            color: #d1d5db !important;
+            opacity: 0.6 !important;
+        }
+        
+        /* 禁用遮罩层样式 */
+        .btn-disabled-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(107, 114, 128, 0.8);
+            border-radius: inherit;
+            pointer-events: none;
+            z-index: 10;
+            display: none;
+        }
+        
+        /* 按钮容器样式 */
+        .btn-container {
+            position: relative;
+            display: inline-block;
+        }
+    </style>
+    
+    
+    
 </body>
+
 </html>
